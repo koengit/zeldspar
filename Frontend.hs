@@ -41,11 +41,10 @@ v =: a = stmt $ v := a
 confiscate :: Prog var inp out a -> Prog var inp out (a, Program var inp out ())
 confiscate = censor (const mempty) . listen
 
-loop :: Prog var inp out () -> Prog var inp out a
+loop :: Prog var inp out () -> Prog var inp out ()
 loop p = do
     (_,prg) <- confiscate p
     tell $ Loop prg
-    return undefined -- The type of `Loop` is strange...
 
 endL :: Prog var inp out () -> Prog var inp out ()
 endL p = do
