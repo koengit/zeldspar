@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs #-}
-module Ziria where
+module Zeldspar where
 
 infix  6 :=
 infixr 5 :>
