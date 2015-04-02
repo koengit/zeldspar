@@ -5,18 +5,19 @@ infix  6 :=
 infixr 5 :>
 infixr 4 >>>
 
-data Statement var inp out where
-  Emit    :: out -> Statement var inp out
-  Receive :: var inp -> Statement var inp out
-  (:=)    :: var a -> a -> Statement var inp out
+data Statement var inp out a where
+  Emit    :: out -> Statement var inp out ()
+  Receive :: var inp -> Statement var inp out ()
+  Fresh   :: a -> Statement var inp out (var a)
+  (:=)    :: var a -> a -> Statement var inp out ()
 
 data Program var inp out a where
-  (:>)   :: Statement var inp out -> Program var inp out () -> Program var inp out ()
+  (:>)   :: Statement var inp out a -> Program var inp out () -> Program var inp out ()
   Loop   :: Program var inp out () -> Program var inp out ()
   Return :: Program var inp out ()
   EndL   :: Program var inp out () -> Program var inp out ()
 
-(>:) :: Program var inp out () -> Statement var inp out -> Program var inp out ()
+(>:) :: Program var inp out () -> Statement var inp out a -> Program var inp out ()
 p >: s = p >>: (s :> Return)
 
 (>>:) :: Program var inp out () -> Program var inp out () -> Program var inp out ()

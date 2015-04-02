@@ -26,7 +26,7 @@ newtype Prog var inp out a = Prog { unProg :: StateT Int (Writer (Program var in
 runProg :: Prog var inp out a -> Program var inp out ()
 runProg = execWriter . flip runStateT 0 . unProg
 
-stmt :: Statement var inp out -> Prog var inp out ()
+stmt :: Statement var inp out () -> Prog var inp out ()
 stmt s = tell (s :> Return)
 
 emit :: out -> Prog var inp out ()
@@ -34,6 +34,9 @@ emit = stmt . Emit
 
 receive :: var inp -> Prog var inp out ()
 receive = stmt . Receive
+
+fresh :: a -> Prog var inp out (var a)
+fresh a = tell (Fresh a :> Return) >> return undefined
 
 (=:) :: var a -> a -> Prog var inp out ()
 v =: a = stmt $ v := a
