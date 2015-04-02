@@ -17,7 +17,7 @@ import Zeldspar
 
 instance Monoid (Program var inp out ())
   where
-    mempty  = Return ()
+    mempty  = Return
     mappend = (>>:)
 
 newtype Prog var inp out a = Prog { unProg :: StateT Int (Writer (Program var inp out ())) a }
@@ -27,7 +27,7 @@ runProg :: Prog var inp out a -> Program var inp out ()
 runProg = execWriter . flip runStateT 0 . unProg
 
 stmt :: Statement var inp out -> Prog var inp out ()
-stmt s = tell $ s :> Return ()
+stmt s = tell (s :> Return)
 
 emit :: out -> Prog var inp out ()
 emit = stmt . Emit
