@@ -17,6 +17,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Zeldspar
+import Frontend
 
 
 
@@ -60,8 +61,8 @@ assignRef (Ref v) (Ref w) = do
     store <- get
     modify $ Map.insert v (store Map.! w)
 
-runIO :: forall inp out . Program Exp inp out -> IO inp -> (out -> IO ()) -> IO ()
-runIO p get put = flip evalStateT Map.empty $ go p
+runIO :: forall inp out . Prog Exp inp out () -> IO inp -> (out -> IO ()) -> IO ()
+runIO p get put = flip evalStateT Map.empty $ go $ runProg p
   where
     go :: Program Exp inp out -> Run ()
     go (Emit a    :> p) = (liftIO . put =<< eval a) >> go p

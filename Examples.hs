@@ -14,7 +14,7 @@ sink :: Int -> IO ()
 sink i = putStr (show i) >> putStr " "
 
 run :: Prog Exp Int Int () -> IO ()
-run p = runIO (runProg p) source sink
+run p = runIO p source sink
 
 prog1 :: Prog Exp Int Int ()
 prog1 = loop $ do
