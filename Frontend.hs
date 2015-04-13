@@ -1,8 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
--- | Monadic front end
+-- | Monadic front end for Zeldspar
 module Frontend where
 
 
@@ -10,47 +9,63 @@ module Frontend where
 import Control.Applicative
 import Control.Monad.State
 import Control.Monad.Writer
+import Data.Typeable
 
-import Zeldspar
+import Zeldspar hiding ((>>>))
+import qualified Zeldspar
 
 
 
-instance Monoid (Program var inp out ())
+instance Monoid (Program exp inp out ())
   where
     mempty  = Return
     mappend = (>>:)
 
-newtype Prog var inp out a = Prog { unProg :: StateT Int (Writer (Program var inp out ())) a }
-  deriving (Functor, Applicative, Monad, MonadState Int, MonadWriter (Program var inp out ()))
+newtype Prog exp inp out a = Prog { unProg :: WriterT (Program exp inp out ()) (State VarId) a }
+  deriving (Functor, Applicative, Monad, MonadState VarId, MonadWriter (Program exp inp out ()))
 
-runProg :: Prog var inp out a -> Program var inp out ()
-runProg = execWriter . flip runStateT 0 . unProg
+runProg :: Prog exp inp out a -> Program exp inp out ()
+runProg = flip evalState 0 . execWriterT . unProg
 
-stmt :: Statement var inp out () -> Prog var inp out ()
+stmt :: Statement exp inp out () -> Prog exp inp out ()
 stmt s = tell (s :> Return)
 
-emit :: out -> Prog var inp out ()
+emit :: exp out -> Prog exp inp out ()
 emit = stmt . Emit
 
-receive :: var inp -> Prog var inp out ()
+receive :: Ref inp -> Prog exp inp out ()
 receive = stmt . Receive
 
-fresh :: a -> Prog var inp out (var a)
-fresh a = tell (Fresh a :> Return) >> return undefined
+newRef :: Typeable a => Prog exp inp out (Ref a)
+newRef = do
+    v <- get; put (v+1)
+    return (Ref v)
 
-(=:) :: var a -> a -> Prog var inp out ()
+(=:) :: Ref a -> exp a -> Prog exp inp out ()
 v =: a = stmt $ v := a
 
-confiscate :: Prog var inp out a -> Prog var inp out (a, Program var inp out ())
+getRef :: (Typeable a, VarExp exp) => Ref a -> Prog exp inp out (exp a)
+getRef r = do
+    s@(Ref w) <- newRef
+    stmt (s :== r)
+    return $ varExp w
+
+confiscate :: Prog exp inp out a -> Prog exp inp out (a, Program exp inp out ())
 confiscate = censor (const mempty) . listen
 
-loop :: Prog var inp out () -> Prog var inp out ()
+loop :: Prog exp inp out () -> Prog exp inp out ()
 loop p = do
     (_,prg) <- confiscate p
     tell $ Loop prg
 
-endL :: Prog var inp out () -> Prog var inp out ()
+endL :: Prog exp inp out () -> Prog exp inp out ()
 endL p = do
     (_,prg) <- confiscate p
     tell $ EndL prg
+
+(>>>) :: Prog exp inp msg a -> Prog exp msg out a -> Prog exp inp out a
+Prog p1 >>> Prog p2 = Prog $ WriterT $ do
+    (a,prog1) <- runWriterT p1
+    (b,prog2) <- runWriterT p2
+    return (b, prog1 Zeldspar.>>> prog2)
 

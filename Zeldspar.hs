@@ -1,31 +1,39 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Zeldspar where
 
+import Data.Typeable
+
 infix  6 :=
+infix  6 :==
 infixr 5 :>
 infixr 4 >>>
 
-data Statement var inp out a where
-  Emit    :: out -> Statement var inp out ()
-  Receive :: var inp -> Statement var inp out ()
-  Fresh   :: a -> Statement var inp out (var a)
-  (:=)    :: var a -> a -> Statement var inp out ()
+type VarId = Int
 
-data Program var inp out a where
-  (:>)   :: Statement var inp out a -> Program var inp out () -> Program var inp out ()
-  Loop   :: Program var inp out () -> Program var inp out ()
-  Return :: Program var inp out ()
-  EndL   :: Program var inp out () -> Program var inp out ()
+data Ref a = Typeable a => Ref VarId
 
-(>:) :: Program var inp out () -> Statement var inp out a -> Program var inp out ()
+data Statement exp inp out a where
+  Emit    :: exp out -> Statement exp inp out ()
+  Receive :: Ref inp -> Statement exp inp out ()
+  (:=)    :: Ref a -> exp a -> Statement exp inp out ()
+  (:==)   :: Ref a -> Ref a -> Statement exp inp out ()
+
+data Program exp inp out a where
+  (:>)   :: Statement exp inp out a -> Program exp inp out () -> Program exp inp out ()
+  Loop   :: Program exp inp out () -> Program exp inp out ()
+  Return :: Program exp inp out ()
+  EndL   :: Program exp inp out () -> Program exp inp out ()
+
+(>:) :: Program exp inp out () -> Statement exp inp out a -> Program exp inp out ()
 p >: s = p >>: (s :> Return)
 
-(>>:) :: Program var inp out () -> Program var inp out () -> Program var inp out ()
+(>>:) :: Program exp inp out () -> Program exp inp out () -> Program exp inp out ()
 (s :> p) >>: q = s :> (p >>: q)
 Loop p   >>: _ = Loop p
 Return   >>: q = q
 
-(>>>) :: Program var inp msg a -> Program var msg out a -> Program var inp out a
+(>>>) :: Program exp inp msg a -> Program exp msg out a -> Program exp inp out a
 
 -- termination
 Return >>> q      = Return
@@ -36,6 +44,9 @@ p      >>> Return = Return
 
 ((v := e) :> p) >>> q               = (v := e) :> (p >>> q)
 p               >>> ((v := e) :> q) = (v := e) :> (p >>> q)
+
+((v :== e) :> p) >>> q                = (v :== e) :> (p >>> q)
+p                >>> ((v :== e) :> q) = (v :== e) :> (p >>> q)
 
 -- loop...
 Loop p >>> Loop q = Loop ((p >>: EndL p) >>> (q >>: EndL q))
@@ -54,22 +65,34 @@ p      >>> EndL q = p >>> (q >>: EndL q)
 (Receive v :> p) >>> q             = Receive v :> (p >>> q)
 p                >>> (Emit m :> q) = Emit m :> (p >>> q)
 
-unloop :: Program var inp out () -> Program var inp out ()
+unloop :: Program exp inp out () -> Program exp inp out ()
 unloop (s :> p) = s :> Loop (p >: s)
 unloop (Loop p) = unloop p
 
-blockInp :: Program var inp out () -> Program var xxx out ()
+blockInp :: Program exp inp out () -> Program exp xxx out ()
 blockInp (Receive _ :> _) = Loop Return
 blockInp (Emit m :> p)    = Emit m :> blockInp p
 blockInp ((v := e) :> p)  = (v := e) :> blockInp p
+blockInp ((v :== e) :> p) = (v :== e) :> blockInp p
 blockInp (Loop p)         = Loop (blockInp p)
 blockInp Return           = Return
 blockInp (EndL p)         = blockInp (Loop p)
 
-blockOut :: Program var inp out () -> Program var inp xxx ()
+blockOut :: Program exp inp out () -> Program exp inp xxx ()
 blockOut (Emit _ :> _)    = Loop Return
 blockOut (Receive v :> p) = Receive v :> blockOut p
 blockOut ((v := e) :> p)  = (v := e) :> blockOut p
+blockOut ((v :== e) :> p) = (v :== e) :> blockOut p
 blockOut (Loop p)         = Loop (blockOut p)
 blockOut Return           = Return
 blockOut (EndL p)         = blockOut (Loop p)
+
+-- | Interface for creating variables
+class VarExp exp
+  where
+    varExp :: Typeable a => VarId -> exp a
+
+-- | Interface for evaluating expressions
+class EvalExp exp m
+  where
+    eval :: exp a -> m a
