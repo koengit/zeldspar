@@ -16,18 +16,18 @@ import qualified Zeldspar
 
 
 
-instance Monoid (Program exp inp out ())
+instance Monoid (Program exp inp out)
   where
     mempty  = Return
     mappend = (>>:)
 
-newtype Prog exp inp out a = Prog { unProg :: WriterT (Program exp inp out ()) (State VarId) a }
-  deriving (Functor, Applicative, Monad, MonadState VarId, MonadWriter (Program exp inp out ()))
+newtype Prog exp inp out a = Prog { unProg :: WriterT (Program exp inp out) (State VarId) a }
+  deriving (Functor, Applicative, Monad, MonadState VarId, MonadWriter (Program exp inp out))
 
-runProg :: Prog exp inp out a -> Program exp inp out ()
+runProg :: Prog exp inp out a -> Program exp inp out
 runProg = flip evalState 0 . execWriterT . unProg
 
-stmt :: Statement exp inp out () -> Prog exp inp out ()
+stmt :: Statement exp inp out -> Prog exp inp out ()
 stmt s = tell (s :> Return)
 
 emit :: exp out -> Prog exp inp out ()
@@ -50,7 +50,7 @@ getRef r = do
     stmt (s :== r)
     return $ varExp w
 
-confiscate :: Prog exp inp out a -> Prog exp inp out (a, Program exp inp out ())
+confiscate :: Prog exp inp out a -> Prog exp inp out (a, Program exp inp out)
 confiscate = censor (const mempty) . listen
 
 loop :: Prog exp inp out () -> Prog exp inp out ()
@@ -63,9 +63,9 @@ endL p = do
     (_,prg) <- confiscate p
     tell $ EndL prg
 
-(>>>) :: Prog exp inp msg a -> Prog exp msg out a -> Prog exp inp out a
+(>>>) :: Prog exp inp msg a -> Prog exp msg out b -> Prog exp inp out (a,b)
 Prog p1 >>> Prog p2 = Prog $ WriterT $ do
     (a,prog1) <- runWriterT p1
     (b,prog2) <- runWriterT p2
-    return (b, prog1 Zeldspar.>>> prog2)
+    return ((a,b), prog1 Zeldspar.>>> prog2)
 

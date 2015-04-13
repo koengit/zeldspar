@@ -13,27 +13,27 @@ type VarId = Int
 
 data Ref a = Typeable a => Ref VarId
 
-data Statement exp inp out a where
-  Emit    :: exp out -> Statement exp inp out ()
-  Receive :: Ref inp -> Statement exp inp out ()
-  (:=)    :: Ref a -> exp a -> Statement exp inp out ()
-  (:==)   :: Ref a -> Ref a -> Statement exp inp out ()
+data Statement exp inp out where
+  Emit    :: exp out -> Statement exp inp out
+  Receive :: Ref inp -> Statement exp inp out
+  (:=)    :: Ref a -> exp a -> Statement exp inp out
+  (:==)   :: Ref a -> Ref a -> Statement exp inp out
 
-data Program exp inp out a where
-  (:>)   :: Statement exp inp out a -> Program exp inp out () -> Program exp inp out ()
-  Loop   :: Program exp inp out () -> Program exp inp out ()
-  Return :: Program exp inp out ()
-  EndL   :: Program exp inp out () -> Program exp inp out ()
+data Program exp inp out where
+  (:>)   :: Statement exp inp out -> Program exp inp out -> Program exp inp out
+  Loop   :: Program exp inp out -> Program exp inp out
+  Return :: Program exp inp out
+  EndL   :: Program exp inp out -> Program exp inp out
 
-(>:) :: Program exp inp out () -> Statement exp inp out a -> Program exp inp out ()
+(>:) :: Program exp inp out -> Statement exp inp out -> Program exp inp out
 p >: s = p >>: (s :> Return)
 
-(>>:) :: Program exp inp out () -> Program exp inp out () -> Program exp inp out ()
+(>>:) :: Program exp inp out -> Program exp inp out -> Program exp inp out
 (s :> p) >>: q = s :> (p >>: q)
 Loop p   >>: _ = Loop p
 Return   >>: q = q
 
-(>>>) :: Program exp inp msg a -> Program exp msg out a -> Program exp inp out a
+(>>>) :: Program exp inp msg -> Program exp msg out -> Program exp inp out
 
 -- termination
 Return >>> q      = Return
@@ -65,11 +65,11 @@ p      >>> EndL q = p >>> (q >>: EndL q)
 (Receive v :> p) >>> q             = Receive v :> (p >>> q)
 p                >>> (Emit m :> q) = Emit m :> (p >>> q)
 
-unloop :: Program exp inp out () -> Program exp inp out ()
+unloop :: Program exp inp out -> Program exp inp out
 unloop (s :> p) = s :> Loop (p >: s)
 unloop (Loop p) = unloop p
 
-blockInp :: Program exp inp out () -> Program exp xxx out ()
+blockInp :: Program exp inp out -> Program exp xxx out
 blockInp (Receive _ :> _) = Loop Return
 blockInp (Emit m :> p)    = Emit m :> blockInp p
 blockInp ((v := e) :> p)  = (v := e) :> blockInp p
@@ -78,7 +78,7 @@ blockInp (Loop p)         = Loop (blockInp p)
 blockInp Return           = Return
 blockInp (EndL p)         = blockInp (Loop p)
 
-blockOut :: Program exp inp out () -> Program exp inp xxx ()
+blockOut :: Program exp inp out -> Program exp inp xxx
 blockOut (Emit _ :> _)    = Loop Return
 blockOut (Receive v :> p) = Receive v :> blockOut p
 blockOut ((v := e) :> p)  = (v := e) :> blockOut p

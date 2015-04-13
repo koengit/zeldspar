@@ -60,10 +60,10 @@ assignRef (Ref v) (Ref w) = do
     store <- get
     modify $ Map.insert v (store Map.! w)
 
-runIO :: forall inp out a . Program Exp inp out a -> IO inp -> (out -> IO ()) -> IO ()
+runIO :: forall inp out . Program Exp inp out -> IO inp -> (out -> IO ()) -> IO ()
 runIO p get put = flip evalStateT Map.empty $ go p
   where
-    go :: Program Exp inp out a -> Run ()
+    go :: Program Exp inp out -> Run ()
     go (Emit a    :> p) = (liftIO . put =<< eval a) >> go p
     go (Receive r :> p) = (assign r . Lit =<< liftIO get) >> go p
     go (r := a    :> p) = assign r a >> go p
