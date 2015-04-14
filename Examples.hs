@@ -33,5 +33,30 @@ prog2 = do
       i <- getRef r
       emit (i*2)
 
-prog3 = prog1 >>> prog2
+prog12 = prog1 >>> prog2
+
+prog3 :: Prog Exp Int Int ()
+prog3 = do
+    r <- newRef
+    loop $ do
+      receive r
+      i <- getRef r
+      emit (i+1)
+      emit (i+2)
+
+prog4 :: Prog Exp Int Int ()
+prog4 = do
+    r <- newRef
+    loop $ do
+      receive r
+      i <- getRef r
+      emit (i*2)
+      receive r
+      i <- getRef r
+      emit (i*3)
+      receive r
+      i <- getRef r
+      emit (i*4)
+
+prog34 = prog3 >>> prog4
 
