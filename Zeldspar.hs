@@ -8,14 +8,14 @@ infix  6 :=
 infixr 5 :>
 infixr 4 >>>
 
-type VarId = Int
+type VarId = Integer
 
-data Ref a = Typeable a => Ref VarId
+data Ref a = Ref VarId
 
 data Statement exp inp out where
   Emit    :: exp out -> Statement exp inp out
-  Receive :: Ref inp -> Statement exp inp out
-  (:=)    :: Ref a -> exp a -> Statement exp inp out
+  Receive :: Typeable inp => Ref inp -> Statement exp inp out
+  (:=)    :: Typeable a   => Ref a -> exp a -> Statement exp inp out
 
 data Program exp inp out where
   (:>)   :: Statement exp inp out -> Program exp inp out -> Program exp inp out

@@ -20,7 +20,7 @@ import Frontend
 type Store = Map VarId Dynamic
 type Run   = StateT Store IO
 
-assign :: Ref a -> a -> Run ()
+assign :: Typeable a => Ref a -> a -> Run ()
 assign (Ref v) = modify . Map.insert v . toDyn
 
 runIO :: forall exp inp out a . EvalExp exp Run =>

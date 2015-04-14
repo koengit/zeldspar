@@ -36,15 +36,15 @@ stmt s = tell (s :> Return)
 emit :: exp out -> Prog exp inp out ()
 emit = stmt . Emit
 
-receive :: Ref inp -> Prog exp inp out ()
+receive :: Typeable inp => Ref inp -> Prog exp inp out ()
 receive = stmt . Receive
 
-newRef :: Typeable a => Prog exp inp out (Ref a)
+newRef :: Prog exp inp out (Ref a)
 newRef = do
     v <- get; put (v+1)
     return (Ref v)
 
-(=:) :: Ref a -> exp a -> Prog exp inp out ()
+(=:) :: Typeable a => Ref a -> exp a -> Prog exp inp out ()
 v =: a = stmt $ v := a
 
 getRef :: forall exp inp out a . (Typeable a, VarExp exp) => Ref a -> Prog exp inp out (exp a)
