@@ -58,14 +58,15 @@ loop p = do
     (_,prg) <- confiscate p
     tell $ Loop prg
 
-endL :: Prog exp inp out () -> Prog exp inp out ()
-endL p = do
-    (_,prg) <- confiscate p
-    tell $ EndL prg
-
-(>>>) :: Prog exp inp msg a -> Prog exp msg out b -> Prog exp inp out (a,b)
-Prog p1 >>> Prog p2 = Prog $ WriterT $ do
+pipe :: (a -> b -> c) -> Prog exp inp msg a -> Prog exp msg out b -> Prog exp inp out c
+pipe comb (Prog p1) (Prog p2) = Prog $ WriterT $ do
     (a,prog1) <- runWriterT p1
     (b,prog2) <- runWriterT p2
-    return ((a,b), prog1 Zeldspar.>>> prog2)
+    return (comb a b, prog1 Zeldspar.>>> prog2)
+
+(>>>|) :: Prog exp inp msg a -> Prog exp msg out () -> Prog exp inp out a
+(>>>|) = pipe const
+
+(|>>>) :: Prog exp inp msg () -> Prog exp msg out a -> Prog exp inp out a
+(|>>>) = pipe $ flip const
 
