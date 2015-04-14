@@ -27,7 +27,12 @@ import Frontend
 
 
 
-instance EvalExp Expr Run
+-- | Interface for evaluating expressions
+class EvalExpM exp m
+  where
+    eval :: exp a -> m a
+
+instance EvalExpM Expr Run
   where
     eval a = do
         store <- get
@@ -44,7 +49,7 @@ withTypeable :: forall exp a b . (VarPred exp a, Typeable :< VarPred exp) =>
 withTypeable _ _ b = case sub (Dict :: Dict (VarPred exp a)) of
     (Dict :: Dict (Typeable a)) -> b
 
-runIO :: forall exp inp out a . (EvalExp exp Run, Typeable :< VarPred exp) =>
+runIO :: forall exp inp out a . (EvalExpM exp Run, Typeable :< VarPred exp) =>
     Prog exp inp out a -> IO inp -> (out -> IO ()) -> IO a
 runIO prog get put = do
     let (a,p) = runProg prog

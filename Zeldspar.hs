@@ -1,6 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 module Zeldspar where
 
 import Language.Embedded.Imperative (VarPred, VarId)
@@ -79,8 +78,3 @@ blockOut ((v := e) :> p)  = (v := e) :> blockOut p
 blockOut (Loop p)         = Loop (blockOut p)
 blockOut Return           = Return
 blockOut (EndL p)         = blockOut (Loop p)
-
--- | Interface for evaluating expressions
-class EvalExp exp m
-  where
-    eval :: exp a -> m a
