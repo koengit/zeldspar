@@ -24,9 +24,12 @@ type Code exp = Imp.Program (CMD exp)
 assign :: VarPred exp a => Ref a -> exp a -> Code exp ()
 assign (Ref v) = Imp.setRef (Imp.RefComp v)
 
-compile :: forall exp inp out . (VarPred exp inp, VarPred exp Bool, EvalExp exp) =>
-    Prog exp inp out () -> Code exp (exp inp) -> (exp out -> Code exp ()) -> Code exp ()
-compile p get put = go $ snd $ runProg p
+compile :: forall exp inp out a . (VarPred exp inp, VarPred exp Bool, EvalExp exp) =>
+    Prog exp inp out a -> Code exp (exp inp) -> (exp out -> Code exp ()) -> Code exp a
+compile prog get put = do
+    let (a,p) = runProg prog
+    go p
+    return a
   where
     go :: Program exp inp out -> Code exp ()
     go (Emit a    :> p) = put a >> go p
