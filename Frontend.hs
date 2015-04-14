@@ -1,5 +1,8 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- | Monadic front end for Zeldspar
 module Frontend where
@@ -58,15 +61,31 @@ loop p = do
     (_,prg) <- confiscate p
     tell $ Loop prg
 
-pipe :: (a -> b -> c) -> Prog exp inp msg a -> Prog exp msg out b -> Prog exp inp out c
-pipe comb (Prog p1) (Prog p2) = Prog $ WriterT $ do
+data One = Fst | Snd
+
+type family WhichOne a b
+  where
+    WhichOne a () = Fst
+    WhichOne () b = Snd
+
+type family SelectT one a b
+  where
+    SelectT Fst a b = a
+    SelectT Snd a b = b
+
+type OneOf a b = SelectT (WhichOne a b) a b
+
+class Select one
+  where
+    select :: Proxy one -> a -> b -> SelectT one a b
+
+instance Select Fst where select _ a _ = a
+instance Select Snd where select _ _ b = b
+
+(>>>) :: forall exp inp msg out a b . Select (WhichOne a b) =>
+    Prog exp inp msg a -> Prog exp msg out b -> Prog exp inp out (OneOf a b)
+Prog p1 >>> Prog p2 = Prog $ WriterT $ do
     (a,prog1) <- runWriterT p1
     (b,prog2) <- runWriterT p2
-    return (comb a b, prog1 Zeldspar.>>> prog2)
-
-(>>>|) :: Prog exp inp msg a -> Prog exp msg out () -> Prog exp inp out a
-(>>>|) = pipe const
-
-(|>>>) :: Prog exp inp msg () -> Prog exp msg out a -> Prog exp inp out a
-(|>>>) = pipe $ flip const
+    return (select (Proxy :: Proxy (WhichOne a b)) a b, prog1 Zeldspar.>>> prog2)
 
