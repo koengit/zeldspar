@@ -5,7 +5,6 @@ module Zeldspar where
 import Data.Typeable
 
 infix  6 :=
-infix  6 :==
 infixr 5 :>
 infixr 4 >>>
 
@@ -17,7 +16,6 @@ data Statement exp inp out where
   Emit    :: exp out -> Statement exp inp out
   Receive :: Ref inp -> Statement exp inp out
   (:=)    :: Ref a -> exp a -> Statement exp inp out
-  (:==)   :: Ref a -> Ref a -> Statement exp inp out
 
 data Program exp inp out where
   (:>)   :: Statement exp inp out -> Program exp inp out -> Program exp inp out
@@ -45,9 +43,6 @@ p      >>> Return = Return
 ((v := e) :> p) >>> q               = (v := e) :> (p >>> q)
 p               >>> ((v := e) :> q) = (v := e) :> (p >>> q)
 
-((v :== e) :> p) >>> q                = (v :== e) :> (p >>> q)
-p                >>> ((v :== e) :> q) = (v :== e) :> (p >>> q)
-
 -- loop...
 Loop p >>> Loop q = Loop ((p >>: EndL p) >>> (q >>: EndL q))
 
@@ -74,7 +69,6 @@ blockInp :: Program exp inp out -> Program exp xxx out
 blockInp (Receive _ :> _) = Loop Return
 blockInp (Emit m :> p)    = Emit m :> blockInp p
 blockInp ((v := e) :> p)  = (v := e) :> blockInp p
-blockInp ((v :== e) :> p) = (v :== e) :> blockInp p
 blockInp (Loop p)         = Loop (blockInp p)
 blockInp Return           = Return
 blockInp (EndL p)         = blockInp (Loop p)
@@ -83,7 +77,6 @@ blockOut :: Program exp inp out -> Program exp inp xxx
 blockOut (Emit _ :> _)    = Loop Return
 blockOut (Receive v :> p) = Receive v :> blockOut p
 blockOut ((v := e) :> p)  = (v := e) :> blockOut p
-blockOut ((v :== e) :> p) = (v :== e) :> blockOut p
 blockOut (Loop p)         = Loop (blockOut p)
 blockOut Return           = Return
 blockOut (EndL p)         = blockOut (Loop p)

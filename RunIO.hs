@@ -23,11 +23,6 @@ type Run   = StateT Store IO
 assign :: Ref a -> a -> Run ()
 assign (Ref v) = modify . Map.insert v . toDyn
 
-assignRef :: Ref a -> Ref a -> Run ()
-assignRef (Ref v) (Ref w) = do
-    store <- get
-    modify $ Map.insert v (store Map.! w)
-
 runIO :: forall exp inp out a . EvalExp exp Run =>
     Prog exp inp out a -> IO inp -> (out -> IO ()) -> IO a
 runIO prog get put = do
@@ -39,7 +34,6 @@ runIO prog get put = do
     go (Emit a    :> p) = (eval a >>= liftIO . put) >> go p
     go (Receive r :> p) = (liftIO get >>= assign r) >> go p
     go (r := a    :> p) = (eval a >>= assign r) >> go p
-    go (r :== a   :> p) = assignRef r a >> go p
     go (Loop p)         = go p >> go (Loop p)
     go Return           = return ()
     -- EndL should not appear here

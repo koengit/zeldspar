@@ -47,10 +47,10 @@ newRef = do
 (=:) :: Ref a -> exp a -> Prog exp inp out ()
 v =: a = stmt $ v := a
 
-getRef :: (Typeable a, VarExp exp) => Ref a -> Prog exp inp out (exp a)
-getRef r = do
-    s@(Ref w) <- newRef
-    stmt (s :== r)
+getRef :: forall exp inp out a . (Typeable a, VarExp exp) => Ref a -> Prog exp inp out (exp a)
+getRef (Ref v) = do
+    s@(Ref w :: Ref a) <- newRef
+    stmt (s := varExp v)
     return $ varExp w
 
 confiscate :: Prog exp inp out a -> Prog exp inp out (a, Program exp inp out)
