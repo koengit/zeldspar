@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -12,7 +13,9 @@ module Frontend where
 import Control.Applicative
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.Typeable
+import Data.Proxy
+
+import Language.Embedded.Imperative (VarPred)
 
 import Zeldspar hiding ((>>>))
 import qualified Zeldspar
@@ -36,7 +39,7 @@ stmt s = tell (s :> Return)
 emit :: exp out -> Prog exp inp out ()
 emit = stmt . Emit
 
-receive :: Typeable inp => Ref inp -> Prog exp inp out ()
+receive :: VarPred exp inp => Ref inp -> Prog exp inp out ()
 receive = stmt . Receive
 
 newRef :: Prog exp inp out (Ref a)
@@ -44,10 +47,10 @@ newRef = do
     v <- get; put (v+1)
     return (Ref v)
 
-(=:) :: Typeable a => Ref a -> exp a -> Prog exp inp out ()
+(=:) :: VarPred exp a => Ref a -> exp a -> Prog exp inp out ()
 v =: a = stmt $ v := a
 
-getRef :: forall exp inp out a . (Typeable a, VarExp exp) => Ref a -> Prog exp inp out (exp a)
+getRef :: forall exp inp out a . (VarPred exp a, VarExp exp) => Ref a -> Prog exp inp out (exp a)
 getRef (Ref v) = do
     s@(Ref w :: Ref a) <- newRef
     stmt (s := varExp v)

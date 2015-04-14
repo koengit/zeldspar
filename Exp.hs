@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module Exp where
@@ -10,6 +11,8 @@ module Exp where
 import Control.Monad.State
 import Data.Dynamic
 import qualified Data.Map as Map
+
+import Language.Embedded.Imperative (VarPred)
 
 import Zeldspar
 import RunIO
@@ -22,6 +25,8 @@ data Exp a
     Lit :: a -> Exp a
     Op1 :: String -> (a -> b) -> Exp a -> Exp b
     Op2 :: String -> (a -> b -> c) -> Exp a -> Exp b -> Exp c
+
+type instance VarPred Exp = Typeable
 
 instance VarExp Exp where varExp = Var
 

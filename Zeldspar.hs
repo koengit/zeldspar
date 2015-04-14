@@ -1,8 +1,9 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Zeldspar where
 
-import Data.Typeable
+import Language.Embedded.Imperative (VarPred)
 
 infix  6 :=
 infixr 5 :>
@@ -14,8 +15,8 @@ data Ref a = Ref VarId
 
 data Statement exp inp out where
   Emit    :: exp out -> Statement exp inp out
-  Receive :: Typeable inp => Ref inp -> Statement exp inp out
-  (:=)    :: Typeable a   => Ref a -> exp a -> Statement exp inp out
+  Receive :: VarPred exp inp => Ref inp -> Statement exp inp out
+  (:=)    :: VarPred exp a   => Ref a -> exp a -> Statement exp inp out
 
 data Program exp inp out where
   (:>)   :: Statement exp inp out -> Program exp inp out -> Program exp inp out
@@ -84,7 +85,7 @@ blockOut (EndL p)         = blockOut (Loop p)
 -- | Interface for creating variables
 class VarExp exp
   where
-    varExp :: Typeable a => VarId -> exp a
+    varExp :: VarPred exp a => VarId -> exp a
 
 -- | Interface for evaluating expressions
 class EvalExp exp m
