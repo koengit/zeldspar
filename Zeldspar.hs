@@ -57,13 +57,14 @@ Loop p      >>> q = unloop p >>> q
 p >>> Loop Return = blockOut p
 p >>> Loop q      = p >>> unloop q
 
-EndL _ >>> EndL _ = Return
-EndL p >>> q      = (p >>: EndL p) >>> q
-p      >>> EndL q = p >>> (q >>: EndL q)
-
 -- outside actions
 (Receive v :> p) >>> q             = Receive v :> (p >>> q)
 p                >>> (Emit m :> q) = Emit m :> (p >>> q)
+
+-- end loop
+EndL _ >>> EndL _ = Return
+EndL p >>> q      = (p >>: EndL p) >>> q
+p      >>> EndL q = p >>> (q >>: EndL q)
 
 unloop :: Program exp inp out -> Program exp inp out
 unloop (s :> p) = s :> Loop (p >: s)
