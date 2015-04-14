@@ -1,9 +1,12 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 -- | This module defines a simple expression type for use in Zeldspar, and a function for running
 -- Zeldspar programs in the 'IO' monad.
@@ -17,11 +20,18 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Language.Embedded.Imperative (Dict (..), (:<) (..), VarPred)
+import Language.Embedded.Expr
 
 import Zeldspar
 import Frontend
 
 
+
+instance EvalExp Expr Run
+  where
+    eval a = do
+        store <- get
+        return $ evalExpr (store Map.!) a
 
 type Store = Map VarId Dynamic
 type Run   = StateT Store IO

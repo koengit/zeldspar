@@ -82,11 +82,6 @@ blockOut (Loop p)         = Loop (blockOut p)
 blockOut Return           = Return
 blockOut (EndL p)         = blockOut (Loop p)
 
--- | Interface for creating variables
-class VarExp exp
-  where
-    varExp :: VarPred exp a => VarId -> exp a
-
 -- | Interface for evaluating expressions
 class EvalExp exp m
   where

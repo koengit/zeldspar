@@ -15,7 +15,7 @@ import Control.Monad.State
 import Control.Monad.Writer
 import Data.Proxy
 
-import Language.Embedded.Imperative (VarPred)
+import Language.Embedded.Imperative (VarPred, CompExp (varExp))
 
 import Zeldspar hiding ((>>>))
 import qualified Zeldspar
@@ -50,7 +50,7 @@ newRef = do
 (=:) :: VarPred exp a => Ref a -> exp a -> Prog exp inp out ()
 v =: a = stmt $ v := a
 
-getRef :: forall exp inp out a . (VarPred exp a, VarExp exp) => Ref a -> Prog exp inp out (exp a)
+getRef :: forall exp inp out a . (VarPred exp a, CompExp exp) => Ref a -> Prog exp inp out (exp a)
 getRef (Ref v) = do
     s@(Ref w :: Ref a) <- newRef
     stmt (s := varExp v)
