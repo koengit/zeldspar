@@ -19,7 +19,7 @@ import Data.Dynamic
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import Language.Embedded.Imperative (Dict (..), (:<) (..), VarPred)
+import Language.Embedded.Imperative (Dict (..), (:<) (..), VarPred, VarId)
 import Language.Embedded.Expr
 
 import Zeldspar

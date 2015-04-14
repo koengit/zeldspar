@@ -15,7 +15,7 @@ import Control.Monad.State
 import Control.Monad.Writer
 import Data.Proxy
 
-import Language.Embedded.Imperative (VarPred, CompExp (varExp))
+import Language.Embedded.Imperative (VarPred, CompExp (varExp), VarId)
 
 import Zeldspar hiding ((>>>))
 import qualified Zeldspar

@@ -3,13 +3,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Zeldspar where
 
-import Language.Embedded.Imperative (VarPred)
+import Language.Embedded.Imperative (VarPred, VarId)
 
 infix  6 :=
 infixr 5 :>
 infixr 4 >>>
-
-type VarId = Integer
 
 data Ref a = Ref VarId
 
