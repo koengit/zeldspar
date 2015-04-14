@@ -18,18 +18,20 @@ run :: Prog Exp Int Int () -> IO ()
 run p = runIO p source sink
 
 prog1 :: Prog Exp Int Int ()
-prog1 = loop $ do
+prog1 = do
     r <- newRef
-    receive r
-    i <- getRef r
-    emit (i+1)
+    loop $ do
+      receive r
+      i <- getRef r
+      emit (i+1)
 
 prog2 :: Prog Exp Int Int ()
-prog2 = loop $ do
+prog2 = do
     r <- newRef
-    receive r
-    i <- getRef r
-    emit (i*2)
+    loop $ do
+      receive r
+      i <- getRef r
+      emit (i*2)
 
 prog3 = prog1 >>> prog2
 
