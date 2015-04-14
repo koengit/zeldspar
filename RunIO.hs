@@ -28,9 +28,12 @@ assignRef (Ref v) (Ref w) = do
     store <- get
     modify $ Map.insert v (store Map.! w)
 
-runIO :: forall exp inp out . EvalExp exp Run =>
-    Prog exp inp out () -> IO inp -> (out -> IO ()) -> IO ()
-runIO p get put = flip evalStateT Map.empty $ go $ runProg p
+runIO :: forall exp inp out a . EvalExp exp Run =>
+    Prog exp inp out a -> IO inp -> (out -> IO ()) -> IO a
+runIO prog get put = do
+    let (a,p) = runProg prog
+    flip evalStateT Map.empty $ go p
+    return a
   where
     go :: Program exp inp out -> Run ()
     go (Emit a    :> p) = (eval a >>= liftIO . put) >> go p

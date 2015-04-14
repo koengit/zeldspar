@@ -14,7 +14,7 @@ source = fmap (read . return) getChar
 sink :: Int -> IO ()
 sink i = putStr (show i) >> putStr " "
 
-run :: Prog Exp Int Int () -> IO ()
+run :: Prog Exp Int Int a -> IO a
 run p = runIO p source sink
 
 prog1 :: Prog Exp Int Int ()

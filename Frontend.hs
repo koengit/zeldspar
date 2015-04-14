@@ -24,8 +24,8 @@ instance Monoid (Program exp inp out)
 newtype Prog exp inp out a = Prog { unProg :: WriterT (Program exp inp out) (State VarId) a }
   deriving (Functor, Applicative, Monad, MonadState VarId, MonadWriter (Program exp inp out))
 
-runProg :: Prog exp inp out a -> Program exp inp out
-runProg = flip evalState 0 . execWriterT . unProg
+runProg :: Prog exp inp out a -> (a, Program exp inp out)
+runProg = flip evalState 0 . runWriterT . unProg
 
 stmt :: Statement exp inp out -> Prog exp inp out ()
 stmt s = tell (s :> Return)
