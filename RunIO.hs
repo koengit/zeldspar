@@ -42,5 +42,5 @@ runIO prog get put = do
     go (r :== a   :> p) = assignRef r a >> go p
     go (Loop p)         = go p >> go (Loop p)
     go Return           = return ()
-    go (EndL p)         = go p >> go (EndL p)
+    -- EndL should not appear here
 
