@@ -221,8 +221,14 @@ readVar v = do
 emit :: exp out -> Z exp inp out ()
 emit = singleton . Emit
 
-receive :: VarPred exp inp => Ref inp -> Z exp inp out ()
-receive = singleton . Receive
+receiveVar :: VarPred exp inp => Ref inp -> Z exp inp out ()
+receiveVar = singleton . Receive
+
+receive :: (VarPred exp inp, EvalExp exp, CompExp exp) => Z exp inp out (exp inp)
+receive = do
+    v <- newVar
+    receiveVar v
+    return (unsafeFreezeRef v)
 
 loop :: Z exp inp out () -> Z exp inp out ()
 loop = singleton . Loop
