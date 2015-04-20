@@ -105,11 +105,11 @@ icompile
        , instr ~ (RefCMD (VarPred exp) exp :+: ControlCMD exp :+: FileCMD exp)
        )
     => Z exp Float Float a -> IO ()
-icompile prog = print =<< prettyCGen (wrapMain $ interpret cprog)
+icompile prog = print $ prettyCGen (wrapMain $ interpret cprog)
   where
     cprog = do
-        inp <- open "stdin"
-        out <- open "stdout"
+        inp <- fopen "stdin" ReadMode
+        out <- fopen "stdout" WriteMode
         compile prog (fget inp) (fput out) :: Program instr a
 
 
