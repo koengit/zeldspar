@@ -32,6 +32,12 @@ data ParProg exp i o a where
            -> ParProg exp t o ()
            -> ParProg exp i o ()
 
+-- | TODO: we want this instead when @newtype Z@ hits:
+--
+--    class Parallel p where
+--      liftP :: p exp i o a -> ParProg exp i o a
+--
+--  ...because that's so much less messy.
 class Parallel l r where
   type Par l r :: * -> *
   (|>>>|) :: l () -> r () -> Par l r ()
