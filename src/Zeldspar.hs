@@ -43,7 +43,7 @@ compile
     -> Program instr a
 compile = Ziria.compile . unZ
 
-icompile :: Z Float Float a -> IO ()
+icompile :: Type inp => Z inp out a -> IO ()
 icompile = Ziria.icompile . unZ
 
 (>>>) :: Z inp msg () -> Z msg out () -> Z inp out ()

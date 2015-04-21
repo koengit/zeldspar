@@ -69,8 +69,8 @@ compZeld
     :: ( EvalExp (IExp instr)
        , CompExp (IExp instr)
        , VarPred (IExp instr) Bool
-       , RefCMD (IExp instr) :<: instr
-       , ControlCMD (IExp instr)           :<: instr
+       , RefCMD (IExp instr)     :<: instr
+       , ControlCMD (IExp instr) :<: instr
        )
     => Program instr (IExp instr inp)        -- ^ Source
     -> (IExp instr out -> Program instr ())  -- ^ Sink
@@ -86,8 +86,8 @@ compile
     :: ( EvalExp (IExp instr)
        , CompExp (IExp instr)
        , VarPred (IExp instr) Bool
-       , RefCMD (IExp instr) :<: instr
-       , ControlCMD (IExp instr)           :<: instr
+       , RefCMD (IExp instr)     :<: instr
+       , ControlCMD (IExp instr) :<: instr
        )
     => Z (IExp instr) inp out a
     -> Program instr (IExp instr inp)        -- ^ Source
@@ -99,16 +99,15 @@ icompile :: forall instr exp inp out a
     .  ( EvalExp exp
        , CompExp exp
        , VarPred exp Bool
-       , VarPred exp Float
-       , instr ~ (RefCMD exp :+: ControlCMD exp :+: FileCMD exp)
+       , VarPred exp inp
+       , instr ~ (RefCMD exp :+: ControlCMD exp :+: CallCMD exp)
        )
-    => Z exp Float Float a -> IO ()
-icompile prog = print $ prettyCGen (wrapMain $ interpret cprog)
+    => Z exp inp out a -> IO ()
+icompile prog = print $ prettyCGen $ wrapMain $ interpret cprog
   where
-    cprog = do
-        inp <- fopen "stdin" ReadMode
-        out <- fopen "stdout" WriteMode
-        compile prog (fget inp) (fput out) :: Program instr a
+    src   = callFun "source" []
+    snk   = \o -> callProc "sink" [FunArg o]
+    cprog = compile prog src snk :: Program instr a
 
 
 

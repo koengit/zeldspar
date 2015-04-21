@@ -73,10 +73,10 @@ compilePar
        , VarPred (IExp instr) inp
        , VarPred (IExp instr) out
        , Typeable :< VarPred (IExp instr)
-       , RefCMD (IExp instr)  :<: instr
-       , ControlCMD (IExp instr)            :<: instr
-       , ThreadCMD                          :<: instr
-       , ChanCMD (IExp instr) :<: instr
+       , RefCMD (IExp instr)     :<: instr
+       , ControlCMD (IExp instr) :<: instr
+       , ThreadCMD               :<: instr
+       , ChanCMD (IExp instr)    :<: instr
        )
     => ParProg (IExp instr) inp out ()
     -> Program instr (IExp instr inp)        -- ^ Source
