@@ -32,6 +32,15 @@ data ZeldCMD exp inp out prog a
     Loop    :: prog () -> ZeldCMD exp inp out prog ()
     EndL    :: prog () -> ZeldCMD exp inp out prog ()
 
+-- `ZeldCMD` is purposefully designed so that most instructions return `()`. The reason is that
+-- `unloop` needs to be able to rotate the body of a loop so that the first instruction is placed
+-- before the loop and then again at the end of the body. This kind of rotating works well for
+-- instructions without results, but it is generally not possible when result values are involved
+-- (it doesn't make sense to bind a value at the end of a loop, since that value immediately goes
+-- out of scope). The exception is `NewVar` which returns a `Ref`. In this particular case it is
+-- possible for `unloop` to just put the instruction before the loop and not at the end of the body.
+-- A new variable is created before the loop, and the same variable is reused throughout the loop.
+
 instance MapInstr (ZeldCMD exp inp out)
   where
     imap _ NewVar      = NewVar
@@ -116,8 +125,6 @@ icompile prog = print $ prettyCGen $ wrapMain $ interpret cprog
 -- * Pipelining
 ----------------------------------------------------------------------------------------------------
 
--- TODO Generalize result type of >>>
-
 (>>>) :: Z exp inp msg () -> Z exp msg out () -> Z exp inp out ()
 Z p >>> Z q = p ->>>- q
   where
@@ -167,7 +174,7 @@ Z p >>> Z q = p ->>>- q
     p               .>>>. (EndL q :>>= _) = unview p ->>>- (q >> singleton (EndL q))
 
 unloop :: ProgramView (ZeldCMD exp inp out) () -> Z exp inp out ()
-unloop (NewVar        :>>= q) = newVar >>= \v -> loop (Z $ q v)  -- No need for NewVar at the end
+unloop (NewVar        :>>= q) = newVar >>= \v -> loop (Z $ q v)  -- No need for newVar at the end
 unloop (i@(_ := _)    :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
 unloop (i@(Emit _)    :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
 unloop (i@(Receive _) :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
