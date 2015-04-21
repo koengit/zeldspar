@@ -4,10 +4,8 @@ module Examples where
 
 import Language.Embedded.Expr
 
-import Zeldspar
+import Ziria
 import Parallel
-
-import Language.Embedded.Imperative
 
 sourceIO :: IO Float
 sourceIO = fmap (read . return) getChar

@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Zeldspar where
+module Ziria where
 
 import Data.IORef
 
@@ -95,8 +95,8 @@ compile
     -> Program instr a
 compile prog src snk = interpretWithMonad (compZeld src snk) prog
 
-icompile
-    :: forall instr exp a . ( EvalExp exp
+icompile :: forall instr exp inp out a
+    .  ( EvalExp exp
        , CompExp exp
        , VarPred exp Bool
        , VarPred exp Float

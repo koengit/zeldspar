@@ -14,7 +14,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Language.Embedded.Imperative
 import Language.Embedded.Concurrent
-import Zeldspar
+import Ziria
 
 import Language.C.Monad
 
