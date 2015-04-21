@@ -5,8 +5,9 @@ module Examples where
 import Language.Embedded.Expr
 
 import Zeldspar
+import Parallel
 
-
+import Language.Embedded.Imperative
 
 sourceIO :: IO Float
 sourceIO = fmap (read . return) getChar
@@ -35,6 +36,9 @@ prog2 = loop $ do
 
 run12  = run      (prog1 >>> prog2)
 comp12 = icompile (prog1 >>> prog2)
+
+comp12par = icompilePar (prog1 |>>>| prog2)
+run12par = runPar (prog1 |>>>| prog2) sourceIO sinkIO
 
 prog3 :: Z Expr Float Float ()
 prog3 = loop $ do
