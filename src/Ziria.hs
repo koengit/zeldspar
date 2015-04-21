@@ -1,10 +1,8 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Ziria where
 
@@ -115,81 +113,76 @@ icompile prog = print $ prettyCGen $ wrapMain $ interpret cprog
 -- * Pipelining
 ----------------------------------------------------------------------------------------------------
 
-pattern Ret a   <- (view -> Return a)
-pattern i :>= p <- (view -> i :>>= p)
-
-(|>=) :: instr (Program instr) a -> (a -> Program instr b) -> Program instr b
-i |>= p = singleton i >>= p
-  -- TODO It should be possible to use `:>=` for this using `where` syntax. Maybe that only works in
-  --      GHC 7.10?
-
-(|>>) :: instr (Program instr) a -> Program instr b -> Program instr b
-i |>> p = singleton i >> p
-
-(>>|) :: Program instr a -> instr (Program instr) b -> Program instr b
-p >>| i = p >> singleton i
-
 -- TODO Generalize result type of >>>
 
 (>>>) :: Z exp inp msg () -> Z exp msg out () -> Z exp inp out ()
+prog1 >>> prog2 = view prog1 .>>>. view prog2
+  where
+    endl = singleton . EndL
 
--- termination
-(Ret a) >>> _       = return a
-_       >>> (Ret b) = return b
+    (.>>>.) :: ProgramView (ZeldCMD exp inp msg) ()
+            -> ProgramView (ZeldCMD exp msg out) ()
+            -> Z exp inp out ()
 
--- variables
-(NewVar :>= p) >>> q              = NewVar |>= \v -> p v >>> q
-p              >>> (NewVar :>= q) = NewVar |>= \v -> p >>> q v
+    -- termination
+    (Return a) .>>>. _          = return a
+    _          .>>>. (Return b) = return b
 
-((v := a) :>= p) >>> q                = (v := a) |>> (p () >>> q)
-p                >>> ((v := a) :>= q) = (v := a) |>> (p >>> q ())
+    -- variables
+    (NewVar :>>= p) .>>>. q               = newVar >>= \v -> p v >>> unview q
+    p               .>>>. (NewVar :>>= q) = newVar >>= \v -> unview p >>> q v
 
--- connect
-(Emit m :>= p) >>> (Receive v :>= q) = (v := m) |>> (p () >>> q ())
+    ((v := a) :>>= p) .>>>. q                 = (v =: a) >> (p () >>> unview q)
+    p                 .>>>. ((v := a) :>>= q) = (v =: a) >> (unview p >>> q ())
 
--- loop
-(Loop p :>= _) >>> (Loop q :>= _) = singleton $ Loop ((p >>| EndL p) >>> (q >>| EndL q))
+    -- connect
+    (Emit m :>>= p) .>>>. (Receive v :>>= q) = (v =: m) >> (p () >>> q ())
 
-(Loop (Ret _) :>= _) >>> q = blockInp q
-(Loop p       :>= _) >>> q = unloop p >>> q
+    -- loop
+    (Loop p :>>= _) .>>>. (Loop q :>>= _) = singleton $ Loop ((p >> endl p) >>> (q >> endl q))
 
-p >>> (Loop (Ret _) :>= _) = blockOut p
-p >>> (Loop q       :>= _) = p >>> unloop q
+    (Loop p :>>= _) .>>>. q = case view p of
+                                Return _ -> blockInp q
+                                p'       -> unloop p' >>> unview q
 
--- outside actions
-(Receive v :>= p) >>> q              = Receive v |>> (p () >>> q)
-p                 >>> (Emit m :>= q) = Emit m    |>> (p >>> q ())
+    p .>>>. (Loop q :>>= _) = case view q of
+                                Return _ -> blockOut p
+                                q'       -> unview p >>> unloop q'
 
--- end loop
-(EndL _ :>= _) >>> (EndL _ :>= _) = return ()
-(EndL p :>= _) >>> q              = (p >>| EndL p) >>> q
-p              >>> (EndL q :>= _) = p >>> (q >>| EndL q)
+    -- outside actions
+    (Receive v :>>= p) .>>>. q               = receiveVar v >> (p () >>> unview q)
+    p                  .>>>. (Emit m :>>= q) = emit m       >> (unview p >>> q ())
 
-unloop :: Z exp inp out () -> Z exp inp out ()
-unloop (NewVar        :>= q) = NewVar |>= \v -> singleton (Loop (q v))  -- No need for NewVar at the end
-unloop (i@(_ := _)    :>= q) = i |>> singleton (Loop (q () >>| i))
-unloop (i@(Emit _)    :>= q) = i |>> singleton (Loop (q () >>| i))
-unloop (i@(Receive _) :>= q) = i |>> singleton (Loop (q () >>| i))
-unloop (Loop q        :>= _) = unloop q
-  -- TODO It's assumed that `p /= Ret a`. This could be captured in the type.
+    -- end loop
+    (EndL _ :>>= _) .>>>. (EndL _ :>>= _) = return ()
+    (EndL p :>>= _) .>>>. q               = (p >> singleton (EndL p)) >>> unview q
+    p               .>>>. (EndL q :>>= _) = unview p >>> (q >> singleton (EndL q))
 
-blockInp :: Z exp inp out () -> Z exp xxx out ()
-blockInp (NewVar    :>= p) = NewVar    |>= \v -> blockInp (p v)
-blockInp ((v := e)  :>= p) = (v := e)  |>> blockInp (p ())
-blockInp (Emit m    :>= p) = Emit m    |>> blockInp (p ())
-blockInp (Receive _ :>= _) = singleton $ Loop (return ())
-blockInp (Loop p    :>= _) = singleton $ Loop (blockInp p)
-blockInp (EndL p    :>= q) = blockInp (Loop p |>= q)
-blockInp (Ret a)           = return a
+unloop :: ProgramView (ZeldCMD exp inp out) () -> Z exp inp out ()
+unloop (NewVar        :>>= q) = newVar >>= \v -> loop (q v)  -- No need for NewVar at the end
+unloop (i@(_ := _)    :>>= q) = singleton i >> loop (q () >> singleton i)
+unloop (i@(Emit _)    :>>= q) = singleton i >> loop (q () >> singleton i)
+unloop (i@(Receive _) :>>= q) = singleton i >> loop (q () >> singleton i)
+unloop (Loop q        :>>= _) = unloop (view q)
+  -- TODO It's assumed that `p /= Return a`. This could be captured in the type.
 
-blockOut :: Z exp inp out () -> Z exp inp xxx ()
-blockOut (NewVar    :>= p) = NewVar    |>= \v -> blockOut (p v)
-blockOut ((v := e)  :>= p) = (v := e)  |>> blockOut (p ())
-blockOut (Emit _    :>= _) = singleton $ Loop (return ())
-blockOut (Receive v :>= p) = Receive v |>> blockOut (p ())
-blockOut (Loop p    :>= _) = singleton $ Loop (blockOut p)
-blockOut (EndL p    :>= q) = blockOut (Loop p |>= q)
-blockOut (Ret a)           = return a
+blockInp :: ProgramView (ZeldCMD exp inp out) () -> Z exp xxx out ()
+blockInp (NewVar    :>>= p) = newVar >>= \v -> blockInp (view $ p v)
+blockInp ((v := e)  :>>= p) = (v =: e) >> blockInp (view $ p ())
+blockInp (Emit m    :>>= p) = emit m >> blockInp (view $ p ())
+blockInp (Receive _ :>>= _) = loop (return ())
+blockInp (Loop p    :>>= _) = loop (blockInp $ view p)
+blockInp (EndL p    :>>= q) = blockInp (view (loop p >>= q))
+blockInp (Return a)         = return a
+
+blockOut :: ProgramView (ZeldCMD exp inp out) () -> Z exp inp xxx ()
+blockOut (NewVar    :>>= p) = newVar >>= \v -> blockOut (view $ p v)
+blockOut ((v := e)  :>>= p) = (v =: e) >> blockOut (view $ p ())
+blockOut (Emit _    :>>= _) = loop (return ())
+blockOut (Receive v :>>= p) = receiveVar v >> blockOut (view $ p ())
+blockOut (Loop p    :>>= _) = loop (blockOut $ view p)
+blockOut (EndL p    :>>= q) = blockOut (view (loop p >>= q))
+blockOut (Return a)         = return a
 
 
 
