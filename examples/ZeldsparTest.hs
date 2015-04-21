@@ -15,14 +15,15 @@ kernel :: Data Int32 -> Data Int32
 kernel n = sum $ map (\x -> x*x) (0...n)
 
 prog1 :: Z Int32 Int32 ()
-prog1 = do
+prog1 = loop $ do
     i <- receive
     emit $ kernel i
 
 prog2 :: Z Int32 Int32 ()
-prog2 = do
+prog2 = loop $ do
     i <- receive
-    emit (i*3333)
+    j <- receive
+    emit (i*j*3333)
 
 test1_1 = icompile prog1
 test1_2 = icompile (prog1 >>> prog2)
