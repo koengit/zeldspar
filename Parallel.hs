@@ -68,16 +68,15 @@ instance (VarPred exp i, VarPred exp o, VarPred exp t) =>
 compilePar
     :: ( EvalExp (IExp instr)
        , CompExp (IExp instr)
-       , VarPred (IExp instr) ~ IPred instr
-       , Typeable :< IPred instr
-       , IPred instr Bool
-       , IPred instr Int
-       , IPred instr inp
-       , IPred instr out
-       , RefCMD (IPred instr) (IExp instr)  :<: instr
+       , VarPred (IExp instr) Bool
+       , VarPred (IExp instr) Int
+       , VarPred (IExp instr) inp
+       , VarPred (IExp instr) out
+       , Typeable :< VarPred (IExp instr)
+       , RefCMD (IExp instr)  :<: instr
        , ControlCMD (IExp instr)            :<: instr
        , ThreadCMD                          :<: instr
-       , ChanCMD (IPred instr) (IExp instr) :<: instr
+       , ChanCMD (IExp instr) :<: instr
        )
     => ParProg (IExp instr) inp out ()
     -> Program instr (IExp instr inp)        -- ^ Source
@@ -116,12 +115,12 @@ icompilePar
        , VarPred exp Bool
        , VarPred exp Float
        , VarPred exp Int
-       , Typeable :< IPred instr
-       , instr ~ (RefCMD (VarPred exp) exp :+:
+       , Typeable :< VarPred (IExp instr)
+       , instr ~ (RefCMD exp :+:
                   ControlCMD exp :+:
                   FileCMD exp :+:
                   ThreadCMD :+:
-                  ChanCMD (IPred instr) (IExp instr))
+                  ChanCMD (IExp instr))
        )
     => ParProg exp Float Float () -> String
 icompilePar prog =

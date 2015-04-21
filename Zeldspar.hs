@@ -68,9 +68,8 @@ runIO prog src snk = interpretWithMonad (runZeld src snk) prog
 compZeld
     :: ( EvalExp (IExp instr)
        , CompExp (IExp instr)
-       , VarPred (IExp instr) ~ IPred instr
-       , IPred instr Bool
-       , RefCMD (IPred instr) (IExp instr) :<: instr
+       , VarPred (IExp instr) Bool
+       , RefCMD (IExp instr) :<: instr
        , ControlCMD (IExp instr)           :<: instr
        )
     => Program instr (IExp instr inp)        -- ^ Source
@@ -86,9 +85,8 @@ compZeld src snk l@(Loop p)  = while (return $ litExp True) p
 compile
     :: ( EvalExp (IExp instr)
        , CompExp (IExp instr)
-       , VarPred (IExp instr) ~ IPred instr
-       , IPred instr Bool
-       , RefCMD (IPred instr) (IExp instr) :<: instr
+       , VarPred (IExp instr) Bool
+       , RefCMD (IExp instr) :<: instr
        , ControlCMD (IExp instr)           :<: instr
        )
     => Z (IExp instr) inp out a
@@ -102,7 +100,7 @@ icompile
        , CompExp exp
        , VarPred exp Bool
        , VarPred exp Float
-       , instr ~ (RefCMD (VarPred exp) exp :+: ControlCMD exp :+: FileCMD exp)
+       , instr ~ (RefCMD exp :+: ControlCMD exp :+: FileCMD exp)
        )
     => Z exp Float Float a -> IO ()
 icompile prog = print $ prettyCGen (wrapMain $ interpret cprog)
