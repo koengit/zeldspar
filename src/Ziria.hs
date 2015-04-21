@@ -1,11 +1,13 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Ziria where
 
+import Control.Applicative
 import Data.IORef
 
 import Language.C.Monad
@@ -39,7 +41,8 @@ instance MapInstr (ZeldCMD exp inp out)
     imap f (Loop p)    = Loop (f p)
     imap f (EndL p)    = EndL (f p)
 
-type Z exp inp out = Program (ZeldCMD exp inp out)
+newtype Z exp inp out a = Z { unZ :: Program (ZeldCMD exp inp out) a }
+  deriving (Functor, Applicative, Monad)
 
 
 
@@ -55,7 +58,7 @@ runZeld src snk (Receive (RefEval r)) = src >>= writeIORef r
 runZeld src snk l@(Loop p)            = p >> runZeld src snk l
 
 runIO :: EvalExp exp => Z exp inp out a -> IO inp -> (out -> IO ()) -> IO a
-runIO prog src snk = interpretWithMonad (runZeld src snk) prog
+runIO prog src snk = interpretWithMonad (runZeld src snk) $ unZ prog
 
 
 
@@ -91,7 +94,7 @@ compile
     -> Program instr (IExp instr inp)        -- ^ Source
     -> (IExp instr out -> Program instr ())  -- ^ Sink
     -> Program instr a
-compile prog src snk = interpretWithMonad (compZeld src snk) prog
+compile prog src snk = interpretWithMonad (compZeld src snk) $ unZ prog
 
 icompile :: forall instr exp inp out a
     .  ( EvalExp exp
@@ -116,8 +119,13 @@ icompile prog = print $ prettyCGen $ wrapMain $ interpret cprog
 -- TODO Generalize result type of >>>
 
 (>>>) :: Z exp inp msg () -> Z exp msg out () -> Z exp inp out ()
-prog1 >>> prog2 = view prog1 .>>>. view prog2
+Z p >>> Z q = p ->>>- q
   where
+    (->>>-) :: Program (ZeldCMD exp inp msg) ()
+            -> Program (ZeldCMD exp msg out) ()
+            -> Z exp inp out ()
+    prog1 ->>>- prog2 = view prog1 .>>>. view prog2
+
     endl = singleton . EndL
 
     (.>>>.) :: ProgramView (ZeldCMD exp inp msg) ()
@@ -129,40 +137,40 @@ prog1 >>> prog2 = view prog1 .>>>. view prog2
     _          .>>>. (Return b) = return b
 
     -- variables
-    (NewVar :>>= p) .>>>. q               = newVar >>= \v -> p v >>> unview q
-    p               .>>>. (NewVar :>>= q) = newVar >>= \v -> unview p >>> q v
+    (NewVar :>>= p) .>>>. q               = newVar >>= \v -> p v ->>>- unview q
+    p               .>>>. (NewVar :>>= q) = newVar >>= \v -> unview p ->>>- q v
 
-    ((v := a) :>>= p) .>>>. q                 = (v =: a) >> (p () >>> unview q)
-    p                 .>>>. ((v := a) :>>= q) = (v =: a) >> (unview p >>> q ())
+    ((v := a) :>>= p) .>>>. q                 = (v =: a) >> (p () ->>>- unview q)
+    p                 .>>>. ((v := a) :>>= q) = (v =: a) >> (unview p ->>>- q ())
 
     -- connect
-    (Emit m :>>= p) .>>>. (Receive v :>>= q) = (v =: m) >> (p () >>> q ())
+    (Emit m :>>= p) .>>>. (Receive v :>>= q) = (v =: m) >> (p () ->>>- q ())
 
     -- loop
-    (Loop p :>>= _) .>>>. (Loop q :>>= _) = singleton $ Loop ((p >> endl p) >>> (q >> endl q))
+    (Loop p :>>= _) .>>>. (Loop q :>>= _) = loop ((p >> endl p) ->>>- (q >> endl q))
 
     (Loop p :>>= _) .>>>. q = case view p of
                                 Return _ -> blockInp q
-                                p'       -> unloop p' >>> unview q
+                                p'       -> unloop p' >>> Z (unview q)
 
     p .>>>. (Loop q :>>= _) = case view q of
                                 Return _ -> blockOut p
-                                q'       -> unview p >>> unloop q'
+                                q'       -> Z (unview p) >>> unloop q'
 
     -- outside actions
-    (Receive v :>>= p) .>>>. q               = receiveVar v >> (p () >>> unview q)
-    p                  .>>>. (Emit m :>>= q) = emit m       >> (unview p >>> q ())
+    (Receive v :>>= p) .>>>. q               = receiveVar v >> (p () ->>>- unview q)
+    p                  .>>>. (Emit m :>>= q) = emit m       >> (unview p ->>>- q ())
 
     -- end loop
     (EndL _ :>>= _) .>>>. (EndL _ :>>= _) = return ()
-    (EndL p :>>= _) .>>>. q               = (p >> singleton (EndL p)) >>> unview q
-    p               .>>>. (EndL q :>>= _) = unview p >>> (q >> singleton (EndL q))
+    (EndL p :>>= _) .>>>. q               = (p >> singleton (EndL p)) ->>>- unview q
+    p               .>>>. (EndL q :>>= _) = unview p ->>>- (q >> singleton (EndL q))
 
 unloop :: ProgramView (ZeldCMD exp inp out) () -> Z exp inp out ()
-unloop (NewVar        :>>= q) = newVar >>= \v -> loop (q v)  -- No need for NewVar at the end
-unloop (i@(_ := _)    :>>= q) = singleton i >> loop (q () >> singleton i)
-unloop (i@(Emit _)    :>>= q) = singleton i >> loop (q () >> singleton i)
-unloop (i@(Receive _) :>>= q) = singleton i >> loop (q () >> singleton i)
+unloop (NewVar        :>>= q) = newVar >>= \v -> loop (Z $ q v)  -- No need for NewVar at the end
+unloop (i@(_ := _)    :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
+unloop (i@(Emit _)    :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
+unloop (i@(Receive _) :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
 unloop (Loop q        :>>= _) = unloop (view q)
   -- TODO It's assumed that `p /= Return a`. This could be captured in the type.
 
@@ -172,7 +180,7 @@ blockInp ((v := e)  :>>= p) = (v =: e) >> blockInp (view $ p ())
 blockInp (Emit m    :>>= p) = emit m >> blockInp (view $ p ())
 blockInp (Receive _ :>>= _) = loop (return ())
 blockInp (Loop p    :>>= _) = loop (blockInp $ view p)
-blockInp (EndL p    :>>= q) = blockInp (view (loop p >>= q))
+blockInp (EndL p    :>>= q) = blockInp $ view $ unZ $ loop (Z p) >>= Z . q
 blockInp (Return a)         = return a
 
 blockOut :: ProgramView (ZeldCMD exp inp out) () -> Z exp inp xxx ()
@@ -181,7 +189,7 @@ blockOut ((v := e)  :>>= p) = (v =: e) >> blockOut (view $ p ())
 blockOut (Emit _    :>>= _) = loop (return ())
 blockOut (Receive v :>>= p) = receiveVar v >> blockOut (view $ p ())
 blockOut (Loop p    :>>= _) = loop (blockOut $ view p)
-blockOut (EndL p    :>>= q) = blockOut (view (loop p >>= q))
+blockOut (EndL p    :>>= q) = blockOut $ view $ unZ $ loop (Z p) >>= Z. q
 blockOut (Return a)         = return a
 
 
@@ -191,7 +199,7 @@ blockOut (Return a)         = return a
 ----------------------------------------------------------------------------------------------------
 
 newVar :: VarPred exp a => Z exp inp out (Ref a)
-newVar = singleton NewVar
+newVar = Z $ singleton NewVar
 
 initVar :: VarPred exp a => exp a -> Z exp inp out (Ref a)
 initVar a = do
@@ -200,7 +208,7 @@ initVar a = do
     return v
 
 (=:) :: VarPred exp a => Ref a -> exp a -> Z exp inp out ()
-v =: a = singleton (v := a)
+v =: a = Z $ singleton (v := a)
 
 readVar :: (VarPred exp a, EvalExp exp, CompExp exp) => Ref a -> Z exp inp out (exp a)
 readVar v = do
@@ -209,10 +217,10 @@ readVar v = do
     return $ unsafeFreezeRef w
 
 emit :: exp out -> Z exp inp out ()
-emit = singleton . Emit
+emit = Z . singleton . Emit
 
 receiveVar :: VarPred exp inp => Ref inp -> Z exp inp out ()
-receiveVar = singleton . Receive
+receiveVar = Z . singleton . Receive
 
 receive :: (VarPred exp inp, EvalExp exp, CompExp exp) => Z exp inp out (exp inp)
 receive = do
@@ -221,5 +229,5 @@ receive = do
     return (unsafeFreezeRef v)
 
 loop :: Z exp inp out () -> Z exp inp out ()
-loop = singleton . Loop
+loop = Z . singleton . Loop . unZ
 
