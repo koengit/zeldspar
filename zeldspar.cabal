@@ -16,6 +16,8 @@ extra-source-files:
 
 library
   exposed-modules:
+    Ziria
+    Parallel
     Zeldspar
 
   other-extensions:
@@ -33,6 +35,7 @@ library
     base                    >=4.7 && <4.9,
     feldspar-compiler-shim,
     feldspar-language,
-    imperative-edsl         >=0.2 && <0.3
+    imperative-edsl         >=0.2 && <0.3,
+    transformers
 
   hs-source-dirs: src
