@@ -33,16 +33,25 @@ data ParProg exp i o a where
            -> ParProg exp i o ()
 
 class Parallel p where
-  liftP :: p exp i o () -> ParProg exp i o ()
+  type PExp p :: * -> *
+  liftP :: p i o () -> ParProg (PExp p) i o ()
 
-instance Parallel ParProg where
+instance Parallel (ParProg exp) where
+  type PExp (ParProg exp) = exp
   liftP = id
 
-instance Parallel Z where
+instance Parallel (Z exp) where
+  type PExp (Z exp) = exp
   liftP = Lift
 
-(|>>>|) :: (Parallel l, Parallel r, VarPred exp i, VarPred exp x, VarPred exp o) =>
-    l exp i x () -> r exp x o () -> ParProg exp i o ()
+(|>>>|)
+    :: ( Parallel l, exp ~ PExp l
+       , Parallel r, exp ~ PExp r
+       , VarPred exp i
+       , VarPred exp x
+       , VarPred exp o
+       )
+    => l i x () -> r x o () -> ParProg exp i o ()
 l |>>>| r = liftP l :|>>>| liftP r
 
 -- | Interpret 'ParProg' in the 'IO' monad
