@@ -32,35 +32,18 @@ data ParProg exp i o a where
            -> ParProg exp t o ()
            -> ParProg exp i o ()
 
--- | TODO: we want this instead when @newtype Z@ hits:
---
---    class Parallel p where
---      liftP :: p exp i o a -> ParProg exp i o a
---
---  ...because that's so much less messy.
-class Parallel l r where
-  type Par l r :: * -> *
-  (|>>>|) :: l () -> r () -> Par l r ()
+class Parallel p where
+  liftP :: p exp i o () -> ParProg exp i o ()
 
-instance (VarPred exp i, VarPred exp o, VarPred exp t) =>
-         Parallel (ParProg exp i t) (ParProg exp t o) where
-  type Par (ParProg exp i t) (ParProg exp t o) = ParProg exp i o
-  (|>>>|) = (:|>>>|)
+instance Parallel ParProg where
+  liftP = id
 
-instance (VarPred exp i, VarPred exp o, VarPred exp t) =>
-         Parallel (Z exp i t) (ParProg exp t o) where
-  type Par (Z exp i t) (ParProg exp t o) = ParProg exp i o
-  a |>>>| b = Lift a :|>>>| b
+instance Parallel Z where
+  liftP = Lift
 
-instance (VarPred exp i, VarPred exp o, VarPred exp t) =>
-         Parallel (ParProg exp i t) (Z exp t o) where
-  type Par (ParProg exp i t) (Z exp t o) = ParProg exp i o
-  a |>>>| b = a :|>>>| Lift b
-
-instance (VarPred exp i, VarPred exp o, VarPred exp t) =>
-         Parallel (Z exp i t) (Z exp t o) where
-  type Par (Z exp i t) (Z exp t o) = ParProg exp i o
-  a |>>>| b = (Lift a :|>>>| Lift b)
+(|>>>|) :: (Parallel l, Parallel r, VarPred exp i, VarPred exp x, VarPred exp o) =>
+    l exp i x () -> r exp x o () -> ParProg exp i o ()
+l |>>>| r = liftP l :|>>>| liftP r
 
 -- | Interpret 'ParProg' in the 'IO' monad
 runPar :: (EvalExp exp, Typeable :< VarPred exp, VarPred exp i, VarPred exp o)
