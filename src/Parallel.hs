@@ -11,7 +11,7 @@
 -- | Parallel stream composition for Zeldspar.
 module Parallel where
 import Control.Monad
-import Control.Monad.IO.Class
+import Control.Monad.IO.Class ()
 import Language.Embedded.Imperative
 import Language.Embedded.Concurrent
 import Ziria
