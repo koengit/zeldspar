@@ -62,10 +62,25 @@ instance (VarPred exp i, VarPred exp o, VarPred exp t) =>
   type Par (Z exp i t) (Z exp t o) = ParProg exp i o
   a |>>>| b = (Lift a :|>>>| Lift b)
 
--- | Compile a parallel computation. Program terminates when the source throws
---   an exception or otherwise kills itself.
---   TODO: Jesus Christ, that type signature! ಠ_ಠ
-compilePar
+-- | Interpret 'ParProg' in the 'IO' monad
+runPar :: (EvalExp exp, Typeable :< VarPred exp, VarPred exp i, VarPred exp o)
+       => ParProg exp i o ()
+       -> IO i
+       -> (o -> IO ())
+       -> IO ()
+runPar ps inp out = do
+  i <- CC.newChan
+  o <- foldPP i ps $ \i p -> do
+    o <- CC.newChan
+    CC.forkIO . void $ runIO p (CC.readChan i) (CC.writeChan o)
+    return o
+  CC.forkIO $ do
+    forever $ CC.readChan o >>= out
+  forever $ inp >>= CC.writeChan i
+
+-- | Translate 'ParProg' to 'Program'. The resulting program terminates when the source throws an
+-- exception or otherwise kills itself.
+translatePar
     :: ( EvalExp (IExp instr)
        , CompExp (IExp instr)
        , VarPred (IExp instr) Bool
@@ -82,54 +97,54 @@ compilePar
     -> Program instr (IExp instr inp)        -- ^ Source
     -> (IExp instr out -> Program instr ())  -- ^ Sink
     -> Program instr ()
-compilePar ps inp out = do
+translatePar ps inp out = do
   i <- newChan (litExp 10)
   o <- foldPP i ps $ \i p -> do
     o <- newChan (litExp 10)
-    fork . void $ compile p (readChan i) (writeChan o)
+    fork . void $ translate p (readChan i) (writeChan o)
     return o
   fork $ do
     while (return $ litExp True) $ readChan o >>= out
   while (return $ litExp True) $ inp >>= writeChan i
 
--- | Run a parallel Zeldspar computation.
-runPar :: (EvalExp exp, Typeable :< VarPred exp, VarPred exp i, VarPred exp o)
-       => ParProg exp i o ()
-       -> IO i
-       -> (o -> IO ())
-       -> IO ()
-runPar ps inp out = do
-  i <- CC.newChan
-  o <- foldPP i ps $ \i p -> do
-    o <- CC.newChan
-    CC.forkIO . void $ runIO p (CC.readChan i) (CC.writeChan o)
-    return o
-  CC.forkIO $ do
-    forever $ CC.readChan o >>= out
-  forever $ inp >>= CC.writeChan i
-
--- | Compile a parallel Zeldspar program to a 'String'.
-icompilePar
-    :: forall instr exp a . ( EvalExp exp
+-- | Simplified compilation from 'ParProg' to C. Input/output is done via two external functions:
+-- @source@ and @sink@.
+compileParStr :: forall exp inp out
+    .  ( EvalExp exp
        , CompExp exp
        , VarPred exp Bool
-       , VarPred exp Float
        , VarPred exp Int
-       , Typeable :< VarPred (IExp instr)
-       , instr ~ (RefCMD exp :+:
-                  ControlCMD exp :+:
-                  FileCMD exp :+:
-                  ThreadCMD :+:
-                  ChanCMD (IExp instr))
+       , VarPred exp inp
+       , VarPred exp out
+       , Typeable :< VarPred exp
        )
-    => ParProg exp Float Float () -> String
-icompilePar prog =
+    => ParProg exp inp out () -> String
+compileParStr prog =
     show $ prettyCGen $ liftSharedLocals $ wrapMain $ interpret cprog
   where
-    cprog = do
-        inp <- fopen "stdin" ReadMode
-        out <- fopen "stdout" WriteMode
-        compilePar prog (fget inp) (fput out) :: Program instr ()
+    src   = callFun "source" []
+    snk   = \o -> callProc "sink" [FunArg o]
+    cprog = translatePar prog src snk
+              :: Program ((RefCMD exp :+:
+                           ControlCMD exp :+:
+                           FileCMD exp :+:
+                           CallCMD exp :+:
+                           ThreadCMD :+:
+                           ChanCMD exp)) ()
+
+-- | Simplified compilation from 'ParProg' to C. Input/output is done via two external functions:
+-- @source@ and @sink@.
+compilePar
+    :: ( EvalExp exp
+       , CompExp exp
+       , VarPred exp Bool
+       , VarPred exp Int
+       , VarPred exp inp
+       , VarPred exp out
+       , Typeable :< VarPred exp
+       )
+    => ParProg exp inp out () -> IO ()
+compilePar = putStrLn . compileParStr
 
 -- | Left fold over a 'ParProg'.
 foldPP :: (Monad m,

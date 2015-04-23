@@ -32,7 +32,8 @@ runZeld
     -> IO a
 runZeld = Ziria.runIO . unZ
 
-compile
+-- | Translate 'Z' to 'Program'
+translate
     :: ( RefCMD Data     :<: instr
        , ControlCMD Data :<: instr
        , IExp instr ~ Data
@@ -41,10 +42,17 @@ compile
     -> Program instr (Data inp)        -- ^ Source
     -> (Data out -> Program instr ())  -- ^ Sink
     -> Program instr a
-compile = Ziria.compile . unZ
+translate = Ziria.translate . unZ
 
-icompile :: Type inp => Z inp out a -> IO ()
-icompile = Ziria.icompile . unZ
+-- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
+-- and @sink@.
+compileStr :: Type inp => Z inp out a -> String
+compileStr = Ziria.compileStr . unZ
+
+-- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
+-- and @sink@.
+compile :: Type inp => Z inp out a -> IO ()
+compile = Ziria.compile . unZ
 
 (>>>) :: Z inp msg () -> Z msg out () -> Z inp out ()
 Z p1 >>> Z p2 = Z (p1 Ziria.>>> p2)

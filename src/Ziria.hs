@@ -59,15 +59,16 @@ newtype Z exp inp out a = Z { unZ :: Program (ZeldCMD exp inp out) a }
 -- * Interpretation
 ----------------------------------------------------------------------------------------------------
 
-runZeld :: EvalExp exp => IO inp -> (out -> IO ()) -> ZeldCMD exp inp out IO a -> IO a
-runZeld src snk NewVar                = fmap RefEval $ newIORef (error "uninitialized reference")
-runZeld src snk (RefEval r := a)      = writeIORef r $ evalExp a
-runZeld src snk (Emit a)              = snk $ evalExp a
-runZeld src snk (Receive (RefEval r)) = src >>= writeIORef r
-runZeld src snk l@(Loop p)            = p >> runZeld src snk l
+runCMD :: EvalExp exp => IO inp -> (out -> IO ()) -> ZeldCMD exp inp out IO a -> IO a
+runCMD src snk NewVar                = fmap RefEval $ newIORef (error "uninitialized reference")
+runCMD src snk (RefEval r := a)      = writeIORef r $ evalExp a
+runCMD src snk (Emit a)              = snk $ evalExp a
+runCMD src snk (Receive (RefEval r)) = src >>= writeIORef r
+runCMD src snk l@(Loop p)            = p >> runCMD src snk l
 
+-- | Interpret a 'Z' program in the 'IO' monad
 runIO :: EvalExp exp => Z exp inp out a -> IO inp -> (out -> IO ()) -> IO a
-runIO prog src snk = interpretWithMonad (runZeld src snk) $ unZ prog
+runIO prog src snk = interpretWithMonad (runCMD src snk) $ unZ prog
 
 
 
@@ -75,7 +76,7 @@ runIO prog src snk = interpretWithMonad (runZeld src snk) $ unZ prog
 -- * Compilation
 ----------------------------------------------------------------------------------------------------
 
-compZeld
+transCMD
     :: ( EvalExp (IExp instr)
        , CompExp (IExp instr)
        , VarPred (IExp instr) Bool
@@ -86,13 +87,14 @@ compZeld
     -> (IExp instr out -> Program instr ())  -- ^ Sink
     -> ZeldCMD (IExp instr) inp out (Program instr) a
     -> Program instr a
-compZeld src snk NewVar      = newRef
-compZeld src snk (r := a)    = setRef r a
-compZeld src snk (Emit a)    = snk a
-compZeld src snk (Receive r) = src >>= setRef r
-compZeld src snk l@(Loop p)  = while (return $ litExp True) p
+transCMD src snk NewVar      = newRef
+transCMD src snk (r := a)    = setRef r a
+transCMD src snk (Emit a)    = snk a
+transCMD src snk (Receive r) = src >>= setRef r
+transCMD src snk l@(Loop p)  = while (return $ litExp True) p
 
-compile
+-- | Translate 'Z' to 'Program'
+translate
     :: ( EvalExp (IExp instr)
        , CompExp (IExp instr)
        , VarPred (IExp instr) Bool
@@ -103,21 +105,33 @@ compile
     -> Program instr (IExp instr inp)        -- ^ Source
     -> (IExp instr out -> Program instr ())  -- ^ Sink
     -> Program instr a
-compile prog src snk = interpretWithMonad (compZeld src snk) $ unZ prog
+translate prog src snk = interpretWithMonad (transCMD src snk) $ unZ prog
 
-icompile :: forall instr exp inp out a
+-- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
+-- and @sink@.
+compileStr :: forall exp inp out a
     .  ( EvalExp exp
        , CompExp exp
        , VarPred exp Bool
        , VarPred exp inp
-       , instr ~ (RefCMD exp :+: ControlCMD exp :+: CallCMD exp)
        )
-    => Z exp inp out a -> IO ()
-icompile prog = print $ prettyCGen $ wrapMain $ interpret cprog
+    => Z exp inp out a -> String
+compileStr prog = show $ prettyCGen $ wrapMain $ interpret cprog
   where
     src   = callFun "source" []
     snk   = \o -> callProc "sink" [FunArg o]
-    cprog = compile prog src snk :: Program instr a
+    cprog = translate prog src snk :: Program (RefCMD exp :+: ControlCMD exp :+: CallCMD exp) a
+
+-- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
+-- and @sink@.
+compile
+    :: ( EvalExp exp
+       , CompExp exp
+       , VarPred exp Bool
+       , VarPred exp inp
+       )
+    => Z exp inp out a -> IO ()
+compile = putStrLn . compileStr
 
 
 
