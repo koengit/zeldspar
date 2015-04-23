@@ -23,16 +23,16 @@ infixr 4 >>>
 -- * Representation
 ----------------------------------------------------------------------------------------------------
 
-data ZeldCMD exp inp out prog a
+data ZiriaCMD exp inp out prog a
   where
-    NewVar  :: VarPred exp a => ZeldCMD exp inp out prog (Ref a)
-    (:=)    :: VarPred exp a => Ref a -> exp a -> ZeldCMD exp inp out prog ()
-    Emit    :: exp out -> ZeldCMD exp inp out prog ()
-    Receive :: VarPred exp inp => Ref inp -> ZeldCMD exp inp out prog ()
-    Loop    :: prog () -> ZeldCMD exp inp out prog ()
-    EndL    :: prog () -> ZeldCMD exp inp out prog ()
+    NewVar  :: VarPred exp a => ZiriaCMD exp inp out prog (Ref a)
+    (:=)    :: VarPred exp a => Ref a -> exp a -> ZiriaCMD exp inp out prog ()
+    Emit    :: exp out -> ZiriaCMD exp inp out prog ()
+    Receive :: VarPred exp inp => Ref inp -> ZiriaCMD exp inp out prog ()
+    Loop    :: prog () -> ZiriaCMD exp inp out prog ()
+    EndL    :: prog () -> ZiriaCMD exp inp out prog ()
 
--- `ZeldCMD` is purposefully designed so that most instructions return `()`. The reason is that
+-- `ZiriaCMD` is purposefully designed so that most instructions return `()`. The reason is that
 -- `unloop` needs to be able to rotate the body of a loop so that the first instruction is placed
 -- before the loop and then again at the end of the body. This kind of rotating works well for
 -- instructions without results, but it is generally not possible when result values are involved
@@ -41,7 +41,7 @@ data ZeldCMD exp inp out prog a
 -- possible for `unloop` to just put the instruction before the loop and not at the end of the body.
 -- A new variable is created before the loop, and the same variable is reused throughout the loop.
 
-instance MapInstr (ZeldCMD exp inp out)
+instance MapInstr (ZiriaCMD exp inp out)
   where
     imap _ NewVar      = NewVar
     imap _ (v := a)    = v := a
@@ -50,7 +50,7 @@ instance MapInstr (ZeldCMD exp inp out)
     imap f (Loop p)    = Loop (f p)
     imap f (EndL p)    = EndL (f p)
 
-newtype Z exp inp out a = Z { unZ :: Program (ZeldCMD exp inp out) a }
+newtype Z exp inp out a = Z { unZ :: Program (ZiriaCMD exp inp out) a }
   deriving (Functor, Applicative, Monad)
 
 
@@ -59,7 +59,7 @@ newtype Z exp inp out a = Z { unZ :: Program (ZeldCMD exp inp out) a }
 -- * Interpretation
 ----------------------------------------------------------------------------------------------------
 
-runCMD :: EvalExp exp => IO inp -> (out -> IO ()) -> ZeldCMD exp inp out IO a -> IO a
+runCMD :: EvalExp exp => IO inp -> (out -> IO ()) -> ZiriaCMD exp inp out IO a -> IO a
 runCMD src snk NewVar                = fmap RefEval $ newIORef (error "uninitialized reference")
 runCMD src snk (RefEval r := a)      = writeIORef r $ evalExp a
 runCMD src snk (Emit a)              = snk $ evalExp a
@@ -85,7 +85,7 @@ transCMD
        )
     => Program instr (IExp instr inp)        -- ^ Source
     -> (IExp instr out -> Program instr ())  -- ^ Sink
-    -> ZeldCMD (IExp instr) inp out (Program instr) a
+    -> ZiriaCMD (IExp instr) inp out (Program instr) a
     -> Program instr a
 transCMD src snk NewVar      = newRef
 transCMD src snk (r := a)    = setRef r a
@@ -142,15 +142,15 @@ compile = putStrLn . compileStr
 (>>>) :: Z exp inp msg () -> Z exp msg out () -> Z exp inp out ()
 Z p >>> Z q = p ->>>- q
   where
-    (->>>-) :: Program (ZeldCMD exp inp msg) ()
-            -> Program (ZeldCMD exp msg out) ()
+    (->>>-) :: Program (ZiriaCMD exp inp msg) ()
+            -> Program (ZiriaCMD exp msg out) ()
             -> Z exp inp out ()
     prog1 ->>>- prog2 = view prog1 .>>>. view prog2
 
     endl = singleton . EndL
 
-    (.>>>.) :: ProgramView (ZeldCMD exp inp msg) ()
-            -> ProgramView (ZeldCMD exp msg out) ()
+    (.>>>.) :: ProgramView (ZiriaCMD exp inp msg) ()
+            -> ProgramView (ZiriaCMD exp msg out) ()
             -> Z exp inp out ()
 
     -- termination
@@ -187,7 +187,7 @@ Z p >>> Z q = p ->>>- q
     (EndL p :>>= _) .>>>. q               = (p >> singleton (EndL p)) ->>>- unview q
     p               .>>>. (EndL q :>>= _) = unview p ->>>- (q >> singleton (EndL q))
 
-unloop :: ProgramView (ZeldCMD exp inp out) () -> Z exp inp out ()
+unloop :: ProgramView (ZiriaCMD exp inp out) () -> Z exp inp out ()
 unloop (NewVar        :>>= q) = newVar >>= \v -> loop (Z $ q v)  -- No need for newVar at the end
 unloop (i@(_ := _)    :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
 unloop (i@(Emit _)    :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
@@ -195,7 +195,7 @@ unloop (i@(Receive _) :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i)
 unloop (Loop q        :>>= _) = unloop (view q)
   -- TODO It's assumed that `p /= Return a`. This could be captured in the type.
 
-blockInp :: ProgramView (ZeldCMD exp inp out) () -> Z exp xxx out ()
+blockInp :: ProgramView (ZiriaCMD exp inp out) () -> Z exp xxx out ()
 blockInp (NewVar    :>>= p) = newVar >>= \v -> blockInp (view $ p v)
 blockInp ((v := e)  :>>= p) = (v =: e) >> blockInp (view $ p ())
 blockInp (Emit m    :>>= p) = emit m >> blockInp (view $ p ())
@@ -204,7 +204,7 @@ blockInp (Loop p    :>>= _) = loop (blockInp $ view p)
 blockInp (EndL p    :>>= q) = blockInp $ view $ unZ $ loop (Z p) >>= Z . q
 blockInp (Return a)         = return a
 
-blockOut :: ProgramView (ZeldCMD exp inp out) () -> Z exp inp xxx ()
+blockOut :: ProgramView (ZiriaCMD exp inp out) () -> Z exp inp xxx ()
 blockOut (NewVar    :>>= p) = newVar >>= \v -> blockOut (view $ p v)
 blockOut ((v := e)  :>>= p) = (v =: e) >> blockOut (view $ p ())
 blockOut (Emit _    :>>= _) = loop (return ())
