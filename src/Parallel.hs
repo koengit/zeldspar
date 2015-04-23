@@ -8,7 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
--- | Parallel stream composition for Zeldspar.
+-- | Parallel stream composition for Ziria.
 module Parallel where
 import Control.Monad
 import Control.Monad.IO.Class ()

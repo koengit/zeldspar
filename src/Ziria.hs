@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 
+-- | A generic implementation of sequential Ziria programs
 module Ziria where
 
 import Control.Applicative
@@ -23,6 +24,7 @@ infixr 4 >>>
 -- * Representation
 ----------------------------------------------------------------------------------------------------
 
+-- | Ziria instructions
 data ZiriaCMD exp inp out prog a
   where
     NewVar  :: VarPred exp a => ZiriaCMD exp inp out prog (Ref a)
@@ -50,6 +52,7 @@ instance MapInstr (ZiriaCMD exp inp out)
     imap f (Loop p)    = Loop (f p)
     imap f (EndL p)    = EndL (f p)
 
+-- | The type of sequential Ziria programs
 newtype Z exp inp out a = Z { unZ :: Program (ZiriaCMD exp inp out) a }
   deriving (Functor, Applicative, Monad)
 
@@ -66,7 +69,7 @@ runCMD src snk (Emit a)              = snk $ evalExp a
 runCMD src snk (Receive (RefEval r)) = src >>= writeIORef r
 runCMD src snk l@(Loop p)            = p >> runCMD src snk l
 
--- | Interpret a 'Z' program in the 'IO' monad
+-- | Interpret a Ziria program in the 'IO' monad
 runIO :: EvalExp exp => Z exp inp out a -> IO inp -> (out -> IO ()) -> IO a
 runIO prog src snk = interpretWithMonad (runCMD src snk) $ unZ prog
 
@@ -139,6 +142,7 @@ compile = putStrLn . compileStr
 -- * Pipelining
 ----------------------------------------------------------------------------------------------------
 
+-- | Program composition. The programs are always fused.
 (>>>) :: Z exp inp msg () -> Z exp msg out () -> Z exp inp out ()
 Z p >>> Z q = p ->>>- q
   where
@@ -219,36 +223,44 @@ blockOut (Return a)         = return a
 -- * Front end
 ----------------------------------------------------------------------------------------------------
 
+-- | Create an uninitialized variable
 newVar :: VarPred exp a => Z exp inp out (Ref a)
 newVar = Z $ singleton NewVar
 
+-- | Create an initialized variable
 initVar :: VarPred exp a => exp a -> Z exp inp out (Ref a)
 initVar a = do
     v <- newVar
     v =: a
     return v
 
+-- | Assign to a variable
 (=:) :: VarPred exp a => Ref a -> exp a -> Z exp inp out ()
 v =: a = Z $ singleton (v := a)
 
+-- | Read a variable
 readVar :: (VarPred exp a, EvalExp exp, CompExp exp) => Ref a -> Z exp inp out (exp a)
 readVar v = do
     w <- newVar
     w =: unsafeFreezeRef v
     return $ unsafeFreezeRef w
 
+-- | Emit a message to the output port
 emit :: exp out -> Z exp inp out ()
 emit = Z . singleton . Emit
 
+-- | Receive a message from the input port
 receiveVar :: VarPred exp inp => Ref inp -> Z exp inp out ()
 receiveVar = Z . singleton . Receive
 
+-- | Receive a message from the input port
 receive :: (VarPred exp inp, EvalExp exp, CompExp exp) => Z exp inp out (exp inp)
 receive = do
     v <- newVar
     receiveVar v
     return (unsafeFreezeRef v)
 
+-- | Loop infinitely over the given program
 loop :: Z exp inp out () -> Z exp inp out ()
 loop = Z . singleton . Loop . unZ
 
