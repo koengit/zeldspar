@@ -25,6 +25,6 @@ prog2 = loop $ do
     j <- receive
     emit (i*j*3333)
 
-test1_1 = icompile prog1
-test1_2 = icompile (prog1 >>> prog2)
+test1_1 = compile prog1
+test1_2 = compile (prog1 >>> prog2)
 
