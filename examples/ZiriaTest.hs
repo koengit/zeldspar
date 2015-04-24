@@ -31,8 +31,8 @@ prog2 = loop $ do
 run12  = run     (prog1 >>> prog2)
 comp12 = compile (prog1 >>> prog2)
 
-run12par  = runPar     (prog1 |>>>| prog2) sourceIO sinkIO
-comp12par = compilePar (prog1 |>>>| prog2)
+run12par  = runPar     (repeatz prog1 |>>>| repeatz prog2) sourceIO sinkIO
+comp12par = compileParStr (repeatz prog1 |>>>| repeatz prog2)
 
 prog3 :: Z Expr Float Float ()
 prog3 = loop $ do
@@ -51,4 +51,3 @@ prog4 = loop $ do
 
 run34  = run     (prog3 >>> prog4)
 comp34 = compile (prog3 >>> prog4)
-

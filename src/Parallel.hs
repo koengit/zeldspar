@@ -23,9 +23,9 @@ import qualified Control.Concurrent as CC
 
 import Data.Typeable
 
--- TODO: allow returning values? use explicit `forever` combinator?
+-- TODO: allow returning values?
 data ParProg exp i o a where
-  Lift     :: Z exp i o ()
+  Repeat   :: Z exp i o ()
            -> ParProg exp i o ()
 
   (:|>>>|) :: (VarPred exp i, VarPred exp o, VarPred exp t)
@@ -35,25 +35,22 @@ data ParProg exp i o a where
 
 class Parallel p where
   type PExp p :: * -> *
-  liftP :: p i o () -> ParProg (PExp p) i o ()
+  -- | Loop a computation as long as there is input available.
+  repeatz :: p i o () -> ParProg (PExp p) i o ()
 
 instance Parallel (ParProg exp) where
   type PExp (ParProg exp) = exp
-  liftP = id
+  repeatz = id
 
 instance Parallel (Z exp) where
   type PExp (Z exp) = exp
-  liftP = Lift
+  repeatz = Repeat
 
-(|>>>|)
-    :: ( Parallel l, exp ~ PExp l
-       , Parallel r, exp ~ PExp r
-       , VarPred exp i
-       , VarPred exp x
-       , VarPred exp o
-       )
-    => l i x () -> r x o () -> ParProg exp i o ()
-l |>>>| r = liftP l :|>>>| liftP r
+(|>>>|) :: (VarPred exp i, VarPred exp t , VarPred exp o)
+        => ParProg exp i t ()
+        -> ParProg exp t o ()
+        -> ParProg exp i o ()
+l |>>>| r = l :|>>>| r
 
 -- | Interpret 'ParProg' in the 'IO' monad
 runPar :: (EvalExp exp, Typeable :< VarPred exp, VarPred exp i, VarPred exp o)
@@ -186,7 +183,7 @@ foldPP :: (Monad m,
            -> Z exp i o a
            -> m (chan o))
        -> m (chan o)
-foldPP acc (Lift p) f =
+foldPP acc (Repeat p) f =
   f acc p
 foldPP acc (a :|>>>| b) f =
   foldPP acc a f >>= \acc' -> foldPP acc' b f
