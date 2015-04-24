@@ -75,7 +75,7 @@ translate = Ziria.translate . unZ
 -- | Translate 'ParZ' to 'Program'
 translatePar
     :: ( Type Bool
-       , Type Int
+       , Type ChanBound
        , Type inp
        , Type out
        , RefCMD (IExp instr)     :<: instr
@@ -97,9 +97,8 @@ compileStr = Ziria.compileStr . unZ
 
 -- | Simplified compilation from 'ParZ' to C. Input/output is done via two external functions:
 -- @source@ and @sink@.
-compileParStr :: (Type Int, Type inp, Type out) => ParZ inp out () -> String
+compileParStr :: (Type ChanBound, Type inp, Type out) => ParZ inp out () -> String
 compileParStr = Ziria.compileParStr . unParZ
-  -- TODO Type Int cannot be fulfilled
 
 -- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
 -- and @sink@.
@@ -108,9 +107,8 @@ compile = Ziria.compile . unZ
 
 -- | Simplified compilation from 'ParZ' to C. Input/output is done via two external functions:
 -- @source@ and @sink@.
-compilePar :: (Type Int, Type inp, Type out) => ParZ inp out () -> IO ()
+compilePar :: (Type ChanBound, Type inp, Type out) => ParZ inp out () -> IO ()
 compilePar = Ziria.compilePar . unParZ
-  -- TODO Type Int cannot be fulfilled
 
 -- | Program composition. The programs are always fused.
 (>>>) :: Z inp msg () -> Z msg out () -> Z inp out ()

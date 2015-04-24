@@ -78,7 +78,7 @@ translatePar
     :: ( EvalExp (IExp instr)
        , CompExp (IExp instr)
        , VarPred (IExp instr) Bool
-       , VarPred (IExp instr) Int
+       , VarPred (IExp instr) ChanBound
        , VarPred (IExp instr) inp
        , VarPred (IExp instr) out
        , Typeable :< VarPred (IExp instr)
@@ -136,7 +136,7 @@ compileParStr :: forall exp inp out
     .  ( EvalExp exp
        , CompExp exp
        , VarPred exp Bool
-       , VarPred exp Int
+       , VarPred exp ChanBound
        , VarPred exp inp
        , VarPred exp out
        , Typeable :< VarPred exp
@@ -166,7 +166,7 @@ compilePar
     :: ( EvalExp exp
        , CompExp exp
        , VarPred exp Bool
-       , VarPred exp Int
+       , VarPred exp ChanBound
        , VarPred exp inp
        , VarPred exp out
        , Typeable :< VarPred exp
