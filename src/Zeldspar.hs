@@ -85,8 +85,8 @@ translatePar
        , IExp instr ~ Data
        )
     => ParZ inp out ()
-    -> Program instr (Data inp)        -- ^ Source
-    -> (Data out -> Program instr ())  -- ^ Sink
+    -> Program instr (Data inp, IExp instr Bool)     -- ^ Source
+    -> (Data out -> Program instr (IExp instr Bool)) -- ^ Sink
     -> Program instr ()
 translatePar = Ziria.translatePar . unParZ
 

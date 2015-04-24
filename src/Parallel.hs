@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeFamilies #-}
 -- | Parallel stream composition for Ziria.
 module Parallel where
+import Prelude hiding (break)
 import Control.Monad
 import Control.Monad.IO.Class ()
 import Language.Embedded.Imperative
@@ -70,8 +71,9 @@ runPar ps inp out = do
     forever $ CC.readChan o >>= out
   forever $ inp >>= CC.writeChan i
 
--- | Translate 'ParProg' to 'Program'. The resulting program terminates when the source throws an
--- exception or otherwise kills itself.
+-- | Translate 'ParProg' to 'Program'.
+--   The program terminates when either the source returns @(anything, False)@,
+--   or the sink returns @False@.
 translatePar
     :: ( EvalExp (IExp instr)
        , CompExp (IExp instr)
@@ -86,18 +88,47 @@ translatePar
        , ChanCMD (IExp instr)    :<: instr
        )
     => ParProg (IExp instr) inp out ()
-    -> Program instr (IExp instr inp)        -- ^ Source
-    -> (IExp instr out -> Program instr ())  -- ^ Sink
+    -> Program instr (IExp instr inp, IExp instr Bool)     -- ^ Source
+    -> (IExp instr out -> Program instr (IExp instr Bool)) -- ^ Sink
     -> Program instr ()
 translatePar ps inp out = do
-  i <- newChan (litExp 10)
-  o <- foldPP i ps $ \i p -> do
-    o <- newChan (litExp 10)
-    fork . void $ translate p (readChan i) (writeChan o)
-    return o
-  fork $ do
-    while (return $ litExp True) $ readChan o >>= out
-  while (return $ litExp True) $ inp >>= writeChan i
+    i <- newCloseableChan (litExp 10)
+    o <- foldPP i ps $ \i p -> do
+      o <- newCloseableChan (litExp 10)
+      fork . void $ translate p (readC i o) (writeC i o)
+      return o
+
+    -- Read from output channel, shove output into sink
+    lastthread <- fork $ do
+      while (return $ litExp True) $ do
+        x <- readChan o
+        stillopen <- lastChanReadOK o
+        iff stillopen (return ()) break
+        outsideopen <- out x
+        iff outsideopen (return ()) break
+      closeChan o
+
+    -- Read from source, shove into input channel
+    while (return $ litExp True) $ do
+      (x, outsideopen) <- inp
+      iff outsideopen (return ()) break
+      stillopen <- writeChan i x
+      iff stillopen (return ()) break
+    closeChan i
+    waitThread lastthread
+  where
+    readC i o = do
+      x <- readChan i
+      stillopen <- lastChanReadOK i
+      iff stillopen
+        (return ())
+        (closeChan o)
+      return x
+    writeC i o x = do
+      stillopen <- writeChan o x
+      iff stillopen
+        (return ())
+        (closeChan i)
 
 -- | Simplified compilation from 'ParProg' to C. Input/output is done via two external functions:
 -- @source@ and @sink@.
@@ -112,10 +143,14 @@ compileParStr :: forall exp inp out
        )
     => ParProg exp inp out () -> String
 compileParStr prog =
-    show $ prettyCGen $ liftSharedLocals $ wrapMain $ interpret cprog
+    show $ prettyCGen $ liftSharedLocals $ wrapMain $ interpret $ cprog
   where
-    src   = callFun "source" []
-    snk   = \o -> callProc "sink" [FunArg o]
+    src = do
+      readokref <- initRef (litExp True)
+      x <- callFun "source" [RefArg readokref]
+      readok <- getRef readokref
+      return (x, readok)
+    snk o = callFun "sink" [FunArg o]
     cprog = translatePar prog src snk
               :: Program ((RefCMD exp :+:
                            ControlCMD exp :+:
@@ -124,8 +159,9 @@ compileParStr prog =
                            ThreadCMD :+:
                            ChanCMD exp)) ()
 
--- | Simplified compilation from 'ParProg' to C. Input/output is done via two external functions:
--- @source@ and @sink@.
+-- | Simplified compilation from 'ParProg' to C.
+--   Input/output is done via two external functions:
+--   @$INPUT_TYPE source(int *)@ and @int sink($OUTPUT_TYPE)@.
 compilePar
     :: ( EvalExp exp
        , CompExp exp
