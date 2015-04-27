@@ -12,8 +12,6 @@ Check out the following repositories:
   * https://github.com/feldspar/feldspar-compiler
   * https://github.com/emwap/feldspar-compiler-shim
 
-In `feldspar-compiler`, check out the `internal_shape` branch.
-
 Set up a cabal sandbox in your Zeldspar repo, then install all the above
 dependencies *in one go*:
 
