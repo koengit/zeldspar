@@ -36,12 +36,12 @@ newtype ParZ inp out a = ParZ { unParZ :: Ziria.ParProg Data inp out a }
 instance Ziria.Parallel Z
   where
     type PExp Z = Data
-    repeatz = repeatz . unZ
+    liftP = liftP . unZ
 
 instance Ziria.Parallel ParZ
   where
     type PExp ParZ = Data
-    repeatz = repeatz . unParZ
+    liftP = liftP . unParZ
 
 -- | Interpret a Zeldspar program in the 'IO' monad
 runZ
@@ -119,9 +119,11 @@ Z p1 >>> Z p2 = Z (p1 Ziria.>>> p2)
     :: ( Type i
        , Type x
        , Type o
+       , Parallel a
+       , Parallel b
        )
-    => ParZ i x () -> ParZ x o () -> ParZ i o ()
-(ParZ p1) |>>>| (ParZ p2) = ParZ (p1 Ziria.|>>>| p2)
+    => a i x () -> b x o () -> ParZ i o ()
+p1 |>>>| p2 = p1 Ziria.|>>>| p2
 
 -- | Create an uninitialized variable
 newVar :: Type a => Z inp out (Ref a)

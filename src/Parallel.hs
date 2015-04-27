@@ -11,6 +11,7 @@
 -- | Parallel stream composition for Ziria.
 module Parallel where
 import Prelude hiding (break)
+import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class ()
 import Language.Embedded.Imperative
@@ -25,7 +26,7 @@ import Data.Typeable
 
 -- TODO: allow returning values?
 data ParProg exp i o a where
-  Repeat   :: Z exp i o ()
+  LiftP    :: Z exp i o ()
            -> ParProg exp i o ()
 
   (:|>>>|) :: (VarPred exp i, VarPred exp o, VarPred exp t)
@@ -35,38 +36,87 @@ data ParProg exp i o a where
 
 class Parallel p where
   type PExp p :: * -> *
-  -- | Loop a computation as long as there is input available.
-  repeatz :: p i o () -> ParProg (PExp p) i o ()
+  -- | Lift a computation to the parallel level.
+  liftP :: p i o () -> ParProg (PExp p) i o ()
 
 instance Parallel (ParProg exp) where
   type PExp (ParProg exp) = exp
-  repeatz = id
+  liftP = id
 
 instance Parallel (Z exp) where
   type PExp (Z exp) = exp
-  repeatz = Repeat
+  liftP = LiftP
 
-(|>>>|) :: (VarPred exp i, VarPred exp t , VarPred exp o)
-        => ParProg exp i t ()
-        -> ParProg exp t o ()
+data CloseChan a = Chan (CC.Chan (Maybe a)) (CC.MVar Bool)
+
+newCC :: IO (CloseChan a)
+newCC = Chan <$> CC.newChan <*> CC.newMVar False
+
+readCC :: CloseChan a -> IO (Maybe a)
+readCC (Chan ch cl) = do
+  mx <- CC.readChan ch
+  case mx of
+    Just x -> return (Just x)
+    _      -> CC.writeChan ch Nothing >> return Nothing
+
+writeCC :: CloseChan a -> a -> IO Bool
+writeCC (Chan ch cl) x = do
+  closed <- CC.readMVar cl
+  if closed
+    then return False
+    else CC.writeChan ch (Just x) >> return True
+
+closeCC :: CloseChan a -> IO ()
+closeCC (Chan ch cl) = void $ do
+  CC.swapMVar cl True
+  CC.writeChan ch Nothing
+
+(|>>>|) :: (Parallel a, exp ~ PExp a,
+            Parallel b, exp ~ PExp b,
+            VarPred exp i,
+            VarPred exp t,
+            VarPred exp o)
+        => a i t ()
+        -> b t o ()
         -> ParProg exp i o ()
-l |>>>| r = l :|>>>| r
+l |>>>| r = liftP l :|>>>| liftP r
 
 -- | Interpret 'ParProg' in the 'IO' monad
-runPar :: (EvalExp exp, Typeable :< VarPred exp, VarPred exp i, VarPred exp o)
+runPar :: (EvalExp exp,
+           Typeable :< VarPred exp,
+           VarPred exp i,
+           VarPred exp o,
+           VarPred exp Bool,
+           VarPred exp ChanBound)
        => ParProg exp i o ()
        -> IO i
        -> (o -> IO ())
        -> IO ()
 runPar ps inp out = do
-  i <- CC.newChan
-  o <- foldPP i ps $ \i p -> do
-    o <- CC.newChan
-    CC.forkIO . void $ runIO p (CC.readChan i) (CC.writeChan o)
-    return o
-  CC.forkIO $ do
-    forever $ CC.readChan o >>= out
-  forever $ inp >>= CC.writeChan i
+    i <- newCC
+    o <- foldPP i ps $ \i p -> do
+      o <- newCC
+      CC.forkIO . void $ do
+        runIO p (readC i o) (writeC i o)
+        closeCC i
+        closeCC o
+      return o
+    CC.forkIO . forever $ readC o o >>= out
+    sourceTo i
+  where
+    sourceTo i = do
+      ok <- inp >>= writeCC i
+      when ok $ sourceTo i
+    readC i o = do
+      mx <- readCC i
+      case mx of
+        Just x -> return x
+        _      -> closeCC o >> error "[Thread self-terminated]"
+    writeC i o x = do
+      ok <- writeCC o x
+      when (not ok) $ do
+        closeCC i
+        error "[Thread self-terminated]"
 
 -- | Translate 'ParProg' to 'Program'.
 --   The program terminates when either the source returns @(anything, False)@,
@@ -92,20 +142,24 @@ translatePar ps inp out = do
     i <- newCloseableChan (litExp 10)
     o <- foldPP i ps $ \i p -> do
       o <- newCloseableChan (litExp 10)
-      fork . void $ translate p (readC i o) (writeC i o)
+      forkWithId $ \t -> void $ do
+        translate p (readC t i o) (writeC t i o)
+        closeChan i
+        closeChan o
       return o
 
     -- Read from output channel, shove output into sink
-    lastthread <- fork $ do
+    -- TODO: inline into the last thread
+    lastthread <- forkWithId $ \t -> do
       while (return $ litExp True) $ do
         x <- readChan o
         stillopen <- lastChanReadOK o
-        iff stillopen (return ()) break
+        iff stillopen (return ()) (killThread t)
         outsideopen <- out x
-        iff outsideopen (return ()) break
-      closeChan o
+        iff outsideopen (return ()) (closeChan o >> killThread t)
 
     -- Read from source, shove into input channel
+    -- TODO: inline into the first thread
     while (return $ litExp True) $ do
       (x, outsideopen) <- inp
       iff outsideopen (return ()) break
@@ -114,18 +168,18 @@ translatePar ps inp out = do
     closeChan i
     waitThread lastthread
   where
-    readC i o = do
+    readC t i o = do
       x <- readChan i
       stillopen <- lastChanReadOK i
       iff stillopen
         (return ())
-        (closeChan o)
+        (closeChan o >> killThread t)
       return x
-    writeC i o x = do
+    writeC t i o x = do
       stillopen <- writeChan o x
       iff stillopen
         (return ())
-        (closeChan i)
+        (closeChan i >> killThread t)
 
 -- | Simplified compilation from 'ParProg' to C. Input/output is done via two external functions:
 -- @source@ and @sink@.
@@ -183,7 +237,7 @@ foldPP :: (Monad m,
            -> Z exp i o a
            -> m (chan o))
        -> m (chan o)
-foldPP acc (Repeat p) f =
+foldPP acc (LiftP p) f =
   f acc p
 foldPP acc (a :|>>>| b) f =
   foldPP acc a f >>= \acc' -> foldPP acc' b f
