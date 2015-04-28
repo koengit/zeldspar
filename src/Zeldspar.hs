@@ -119,11 +119,11 @@ Z p1 >>> Z p2 = Z (p1 Ziria.>>> p2)
     :: ( Type i
        , Type x
        , Type o
-       , Parallel a
-       , Parallel b
+       , Parallel a, PExp a ~ Data
+       , Parallel b, PExp b ~ Data
        )
     => a i x () -> b x o () -> ParZ i o ()
-p1 |>>>| p2 = p1 Ziria.|>>>| p2
+p1 |>>>| p2 = ParZ (p1 Ziria.|>>>| p2)
 
 -- | Create an uninitialized variable
 newVar :: Type a => Z inp out (Ref a)
