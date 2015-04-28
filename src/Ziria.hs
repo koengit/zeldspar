@@ -122,7 +122,7 @@ compileStr :: forall exp inp out a
 compileStr prog = show $ prettyCGen $ wrapMain $ interpret cprog
   where
     src   = callFun "source" []
-    snk   = \o -> callProc "sink" [FunArg o]
+    snk   = \o -> callProc "sink" [ValArg o]
     cprog = translate prog src snk :: Program (RefCMD exp :+: ControlCMD exp :+: CallCMD exp) a
 
 -- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@

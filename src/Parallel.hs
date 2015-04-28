@@ -201,7 +201,7 @@ compileParStr prog =
       x <- callFun "source" [RefArg readokref]
       readok <- getRef readokref
       return (x, readok)
-    snk o = callFun "sink" [FunArg o]
+    snk o = callFun "sink" [ValArg o]
     cprog = translatePar prog src snk
               :: Program ((RefCMD exp :+:
                            ControlCMD exp :+:
