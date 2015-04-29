@@ -92,7 +92,7 @@ translatePar = Ziria.translatePar . unParZ
 
 -- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
 -- and @sink@.
-compileStr :: Type inp => Z inp out a -> String
+compileStr :: (Type inp, Type out) => Z inp out a -> String
 compileStr = Ziria.compileStr . unZ
 
 -- | Simplified compilation from 'ParZ' to C. Input/output is done via two external functions:
@@ -102,7 +102,7 @@ compileParStr = Ziria.compileParStr . unParZ
 
 -- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
 -- and @sink@.
-compile :: Type inp => Z inp out a -> IO ()
+compile :: (Type inp, Type out) => Z inp out a -> IO ()
 compile = Ziria.compile . unZ
 
 -- | Simplified compilation from 'ParZ' to C. Input/output is done via two external functions:

@@ -198,10 +198,10 @@ compileParStr prog =
   where
     src = do
       readokref <- initRef (litExp True)
-      x <- callFun "source" [RefArg readokref]
+      x <- externFun "source" [RefArg readokref]
       readok <- getRef readokref
       return (x, readok)
-    snk o = callFun "sink" [ValArg o]
+    snk o = externFun "sink" [ValArg o]
     cprog = translatePar prog src snk
               :: Program ((RefCMD exp :+:
                            ControlCMD exp :+:
