@@ -90,23 +90,23 @@ translatePar
     -> Program instr ()
 translatePar = Ziria.translatePar . unParZ
 
--- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
--- and @sink@.
+-- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:
+-- @receive@ and @emit@.
 compileStr :: (Type inp, Type out) => Z inp out a -> String
 compileStr = Ziria.compileStr . unZ
 
 -- | Simplified compilation from 'ParZ' to C. Input/output is done via two external functions:
--- @source@ and @sink@.
+-- @receive@ and @emit@.
 compileParStr :: (Type ChanBound, Type inp, Type out) => ParZ inp out () -> String
 compileParStr = Ziria.compileParStr . unParZ
 
--- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
--- and @sink@.
+-- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:
+-- @receive@ and @emit@.
 compile :: (Type inp, Type out) => Z inp out a -> IO ()
 compile = Ziria.compile . unZ
 
 -- | Simplified compilation from 'ParZ' to C. Input/output is done via two external functions:
--- @source@ and @sink@.
+-- @receive@ and @emit@.
 compilePar :: (Type ChanBound, Type inp, Type out) => ParZ inp out () -> IO ()
 compilePar = Ziria.compilePar . unParZ
 

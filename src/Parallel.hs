@@ -182,7 +182,7 @@ translatePar ps inp out = do
         (closeChan i >> killThread t)
 
 -- | Simplified compilation from 'ParProg' to C. Input/output is done via two external functions:
--- @source@ and @sink@.
+-- @receive@ and @emit@.
 compileParStr :: forall exp inp out
     .  ( EvalExp exp
        , CompExp exp
@@ -198,10 +198,10 @@ compileParStr prog =
   where
     src = do
       readokref <- initRef (litExp True)
-      x <- externFun "source" [RefArg readokref]
+      x <- externFun "receive" [RefArg readokref]
       readok <- getRef readokref
       return (x, readok)
-    snk o = externFun "sink" [ValArg o]
+    snk o = externFun "emit" [ValArg o]
     cprog = translatePar prog src snk
               :: Program ((RefCMD exp :+:
                            ControlCMD exp :+:
@@ -212,7 +212,7 @@ compileParStr prog =
 
 -- | Simplified compilation from 'ParProg' to C.
 --   Input/output is done via two external functions:
---   @$INPUT_TYPE source(int *)@ and @int sink($OUTPUT_TYPE)@.
+--   @$INPUT_TYPE receive(int *)@ and @int emit($OUTPUT_TYPE)@.
 compilePar
     :: ( EvalExp exp
        , CompExp exp

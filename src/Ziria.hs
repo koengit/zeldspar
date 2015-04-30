@@ -110,8 +110,8 @@ translate
     -> Program instr a
 translate prog src snk = interpretWithMonad (transCMD src snk) $ unZ prog
 
--- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
--- and @sink@.
+-- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:
+-- @receive@ and @emit@.
 compileStr :: forall exp inp out a
     .  ( EvalExp exp
        , CompExp exp
@@ -122,12 +122,12 @@ compileStr :: forall exp inp out a
     => Z exp inp out a -> String
 compileStr prog = show $ prettyCGen $ wrapMain $ interpret cprog
   where
-    src   = externFun "source" []
-    snk   = \o -> externProc "sink" [ValArg o]
+    src   = externFun "receive" []
+    snk   = \o -> externProc "emit" [ValArg o]
     cprog = translate prog src snk :: Program (RefCMD exp :+: ControlCMD exp :+: CallCMD exp) a
 
--- | Simplified compilation from 'Z' to C. Input/output is done via two external functions: @source@
--- and @sink@.
+-- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:
+-- @receive@ and @emit@.
 compile
     :: ( EvalExp exp
        , CompExp exp
