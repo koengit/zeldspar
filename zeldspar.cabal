@@ -20,6 +20,8 @@ library
     Parallel
     Zeldspar
 
+  hs-source-dirs: src
+
   other-extensions:
     ConstraintKinds
     FlexibleContexts
@@ -38,4 +40,17 @@ library
     imperative-edsl         >=0.2 && <0.3,
     transformers
 
-  hs-source-dirs: src
+test-suite Examples
+  type: exitcode-stdio-1.0
+
+  hs-source-dirs: tests examples
+
+  main-is: Examples.hs
+
+  default-language: Haskell2010
+
+  build-depends:
+    base,
+    feldspar-language,
+    imperative-edsl,
+    zeldspar
