@@ -183,7 +183,7 @@ translatePar ps inp out = do
 
 -- | Simplified compilation from 'ParProg' to C. Input/output is done via two external functions:
 -- @receive@ and @emit@.
-compileParStr :: forall exp inp out
+compilePar :: forall exp inp out
     .  ( EvalExp exp
        , CompExp exp
        , VarPred exp Bool
@@ -193,7 +193,7 @@ compileParStr :: forall exp inp out
        , Typeable :< VarPred exp
        )
     => ParProg exp inp out () -> String
-compileParStr prog =
+compilePar prog =
     show $ prettyCGen $ liftSharedLocals $ wrapMain $ interpret $ cprog
   where
     src = do
@@ -213,7 +213,7 @@ compileParStr prog =
 -- | Simplified compilation from 'ParProg' to C.
 --   Input/output is done via two external functions:
 --   @$INPUT_TYPE receive(int *)@ and @int emit($OUTPUT_TYPE)@.
-compilePar
+icompilePar
     :: ( EvalExp exp
        , CompExp exp
        , VarPred exp Bool
@@ -223,7 +223,7 @@ compilePar
        , Typeable :< VarPred exp
        )
     => ParProg exp inp out () -> IO ()
-compilePar = putStrLn . compileParStr
+icompilePar = putStrLn . compilePar
 
 -- | Left fold over a 'ParProg'.
 foldPP :: (Monad m,
