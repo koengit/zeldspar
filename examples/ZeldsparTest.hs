@@ -2,7 +2,7 @@ module ZeldsparTest where
 
 
 
-import qualified Prelude
+import Prelude ()
 
 import Feldspar
 import Feldspar.SimpleVector

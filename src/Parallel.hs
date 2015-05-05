@@ -10,19 +10,22 @@
 {-# LANGUAGE TypeFamilies #-}
 -- | Parallel stream composition for Ziria.
 module Parallel where
+
 import Prelude hiding (break)
+
 import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class ()
-import Language.Embedded.Imperative
+import Data.Typeable
+
+import Language.Embedded.Expression
+import Language.Embedded.Imperative hiding (compile)
+import qualified Language.Embedded.Imperative as Imp
 import Language.Embedded.Concurrent
+
 import Ziria
 
-import Language.C.Monad
-
 import qualified Control.Concurrent as CC
-
-import Data.Typeable
 
 -- TODO: allow returning values?
 data ParProg exp i o a where
@@ -193,8 +196,7 @@ compilePar :: forall exp inp out
        , Typeable :< VarPred exp
        )
     => ParProg exp inp out () -> String
-compilePar prog =
-    show $ prettyCGen $ liftSharedLocals $ wrapMain $ interpret $ cprog
+compilePar prog = Imp.compile $ cprog
   where
     src = do
       readokref <- initRef (litExp True)

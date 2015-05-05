@@ -11,9 +11,10 @@ module Ziria where
 import Control.Applicative
 import Data.IORef
 
+import Control.Monad.Operational.Compositional
 import Language.C.Monad
-import Language.Embedded.Backend.C ()
-import Language.Embedded.Imperative
+import Language.Embedded.Expression
+import Language.Embedded.Imperative hiding (compile, icompile)
 
 infix  6 :=
 infixr 4 >>>
