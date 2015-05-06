@@ -14,6 +14,7 @@ import Data.IORef
 import Control.Monad.Operational.Compositional
 import Language.C.Monad
 import Language.Embedded.Expression
+import Language.Embedded.Imperative.CMD
 import Language.Embedded.Imperative hiding (compile, icompile)
 
 infix  6 :=
