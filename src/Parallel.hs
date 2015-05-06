@@ -86,7 +86,6 @@ l |>>>| r = liftP l :|>>>| liftP r
 
 -- | Interpret 'ParProg' in the 'IO' monad
 runPar :: (EvalExp exp,
-           Typeable :< VarPred exp,
            VarPred exp i,
            VarPred exp o,
            VarPred exp Bool,
@@ -131,7 +130,6 @@ translatePar
        , VarPred (IExp instr) ChanBound
        , VarPred (IExp instr) inp
        , VarPred (IExp instr) out
-       , Typeable :< VarPred (IExp instr)
        , RefCMD (IExp instr)     :<: instr
        , ControlCMD (IExp instr) :<: instr
        , ThreadCMD               :<: instr
@@ -193,7 +191,6 @@ compilePar :: forall exp inp out
        , VarPred exp ChanBound
        , VarPred exp inp
        , VarPred exp out
-       , Typeable :< VarPred exp
        )
     => ParProg exp inp out () -> String
 compilePar prog = Imp.compile $ cprog
@@ -222,14 +219,12 @@ icompilePar
        , VarPred exp ChanBound
        , VarPred exp inp
        , VarPred exp out
-       , Typeable :< VarPred exp
        )
     => ParProg exp inp out () -> IO ()
 icompilePar = putStrLn . compilePar
 
 -- | Left fold over a 'ParProg'.
 foldPP :: (Monad m,
-           Typeable :< VarPred exp,
            VarPred exp i,
            VarPred exp o)
        => chan i
