@@ -22,19 +22,10 @@ library
 
   hs-source-dirs: src
 
-  other-extensions:
-    ConstraintKinds
-    FlexibleContexts
-    GADTs
-    PatternSynonyms
-    ScopedTypeVariables
-    TypeOperators
-    ViewPatterns
-
   default-language: Haskell2010
 
   build-depends:
-    base                    >=4.7 && <4.9,
+    base                    >=4.6 && <4.9,
     feldspar-compiler-shim,
     feldspar-language,
     imperative-edsl         >=0.2 && <0.3,
