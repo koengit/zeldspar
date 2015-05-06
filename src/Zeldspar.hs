@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -13,7 +14,9 @@ module Zeldspar where
 
 
 
-import Control.Applicative (Applicative)
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative
+#endif
 
 import Language.Embedded.Imperative
 import Language.Embedded.Concurrent
