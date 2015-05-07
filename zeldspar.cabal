@@ -27,6 +27,7 @@ library
   build-depends:
     base                    >=4.6 && <4.9,
     feldspar-compiler-shim,
+    feldspar-io,
     feldspar-language,
     imperative-edsl         >=0.2 && <0.3,
     transformers
@@ -43,5 +44,6 @@ test-suite Examples
   build-depends:
     base,
     feldspar-language,
+    feldspar-io,
     imperative-edsl,
     zeldspar

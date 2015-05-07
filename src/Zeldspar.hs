@@ -17,11 +17,10 @@ module Zeldspar where
 import Control.Applicative
 #endif
 
-import Language.Embedded.Imperative
 import Language.Embedded.Concurrent
 
 import Feldspar hiding (Ref)
-import Feldspar.Compiler.FromImperative ()
+import Feldspar.IO
 
 import qualified Ziria
 import Parallel (Parallel (..))
@@ -64,33 +63,21 @@ runParZ = Ziria.runPar . unParZ
 
 -- | Translate 'Z' to 'Program'
 translate
-    :: ( RefCMD Data     :<: instr
-       , ControlCMD Data :<: instr
-       , IExp instr ~ Data
-       )
-    => Z inp out a
-    -> Program instr (Data inp)        -- ^ Source
-    -> (Data out -> Program instr ())  -- ^ Sink
-    -> Program instr a
-translate = Ziria.translate . unZ
+    :: Z inp out a
+    -> Program (Data inp)        -- ^ Source
+    -> (Data out -> Program ())  -- ^ Sink
+    -> Program a
+translate z src snk =
+    Program $ Ziria.translate (unZ z) (unProgram src) (unProgram . snk)
 
 -- | Translate 'ParZ' to 'Program'
-translatePar
-    :: ( Type Bool
-       , Type ChanBound
-       , Type inp
-       , Type out
-       , RefCMD (IExp instr)     :<: instr
-       , ControlCMD (IExp instr) :<: instr
-       , ThreadCMD               :<: instr
-       , ChanCMD (IExp instr)    :<: instr
-       , IExp instr ~ Data
-       )
+translatePar :: (Type inp, Type out)
     => ParZ inp out ()
-    -> Program instr (Data inp, IExp instr Bool)     -- ^ Source
-    -> (Data out -> Program instr (IExp instr Bool)) -- ^ Sink
-    -> Program instr ()
-translatePar = Ziria.translatePar . unParZ
+    -> Program (Data inp, Data Bool)     -- ^ Source
+    -> (Data out -> Program (Data Bool)) -- ^ Sink
+    -> Program ()
+translatePar z src snk =
+    Program $ Ziria.translatePar (unParZ z) (unProgram src) (unProgram . snk)
 
 -- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:
 -- @receive@ and @emit@.
@@ -99,7 +86,7 @@ compile = Ziria.compile . unZ
 
 -- | Simplified compilation from 'ParZ' to C. Input/output is done via two external functions:
 -- @receive@ and @emit@.
-compilePar :: (Type ChanBound, Type inp, Type out) => ParZ inp out () -> String
+compilePar :: (Type inp, Type out) => ParZ inp out () -> String
 compilePar = Ziria.compilePar . unParZ
 
 -- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:

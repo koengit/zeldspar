@@ -11,11 +11,12 @@ Check out the following repositories:
   * https://github.com/feldspar/feldspar-language
   * https://github.com/feldspar/feldspar-compiler
   * https://github.com/emwap/feldspar-compiler-shim
+  * https://github.com/emilaxelsson/feldspar-io
 
 Set up a cabal sandbox in your Zeldspar repo, then install all the above
 dependencies *in one go*:
 
-    cabal install ../feldspar-compiler-shim/ ../imperative-edsl/ ../feldspar-compiler ../feldspar-language/
+    cabal install ../imperative-edsl/ ../feldspar-compiler ../feldspar-language/ ../feldspar-compiler-shim/ ../feldspar-io/
 
 Install any other dependencies using `cabal install --only-dependencies`.
 
