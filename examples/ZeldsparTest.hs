@@ -4,7 +4,7 @@ module ZeldsparTest where
 
 import Prelude ()
 
-import Feldspar hiding (getRef, modifyRef)
+import Feldspar
 import Feldspar.SimpleVector
 import Feldspar.IO hiding (compile)
 

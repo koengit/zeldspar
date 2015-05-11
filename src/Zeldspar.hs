@@ -19,7 +19,7 @@ import Control.Applicative
 
 import Language.Embedded.Concurrent
 
-import Feldspar hiding (Ref)
+import Feldspar
 import Feldspar.IO
 
 import qualified Ziria
