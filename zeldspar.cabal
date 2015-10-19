@@ -29,7 +29,7 @@ library
     feldspar-compiler-shim,
     feldspar-io,
     feldspar-language,
-    imperative-edsl         >=0.2 && <0.3,
+    imperative-edsl,
     transformers
 
 test-suite Examples
