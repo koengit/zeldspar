@@ -19,6 +19,7 @@ import Language.C.Monad
 import Language.Embedded.Expression
 import Language.Embedded.Imperative.CMD
 import Language.Embedded.Imperative hiding (compile, icompile)
+import qualified Language.Embedded.Imperative as Imp
 
 infix  6 :=
 infixr 4 >>>
@@ -125,7 +126,7 @@ compile :: forall exp inp out a
        , VarPred exp out
        )
     => Z exp inp out a -> String
-compile prog = show $ prettyCGen $ wrapMain $ interpret cprog
+compile prog = Imp.compile cprog
   where
     src   = externFun "receive" []
     snk   = \o -> externProc "emit" [ValArg o]
