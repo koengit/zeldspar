@@ -48,14 +48,14 @@ data ZiriaCMD exp inp out prog a
 -- possible for `unloop` to just put the instruction before the loop and not at the end of the body.
 -- A new variable is created before the loop, and the same variable is reused throughout the loop.
 
-instance MapInstr (ZiriaCMD exp inp out)
+instance HFunctor (ZiriaCMD exp inp out)
   where
-    imap _ NewVar      = NewVar
-    imap _ (v := a)    = v := a
-    imap _ (Emit a)    = Emit a
-    imap _ (Receive r) = Receive r
-    imap f (Loop p)    = Loop (f p)
-    imap f (EndL p)    = EndL (f p)
+    hfmap _ NewVar      = NewVar
+    hfmap _ (v := a)    = v := a
+    hfmap _ (Emit a)    = Emit a
+    hfmap _ (Receive r) = Receive r
+    hfmap f (Loop p)    = Loop (f p)
+    hfmap f (EndL p)    = EndL (f p)
 
 -- | The type of sequential Ziria programs
 newtype Z exp inp out a = Z { unZ :: Program (ZiriaCMD exp inp out) a }
