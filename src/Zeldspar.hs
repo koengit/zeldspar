@@ -114,6 +114,20 @@ Z p1 >>> Z p2 = Z (p1 Ziria.>>> p2)
     => a i x () -> b x o () -> ParZ i o ()
 p1 |>>>| p2 = ParZ (p1 Ziria.|>>>| p2)
 
+-- | Emit a message to the output port
+emit :: Data out -> Z inp out ()
+emit = Z . Ziria.emit
+
+-- | Receive a message from the input port
+receive :: Type inp => Z inp out (Data inp)
+receive = Z Ziria.receive
+
+-- | Loop infinitely over the given program
+loop :: Z inp out () -> Z inp out ()
+loop = Z . Ziria.loop . unZ
+
+
+
 -- | Create an uninitialized variable
 newVar :: Type a => Z inp out (Ref a)
 newVar = Z Ziria.newVar
@@ -130,19 +144,7 @@ v =: a = Z (v Ziria.=: a)
 readVar :: Type a => Ref a -> Z inp out (Data a)
 readVar = Z . Ziria.readVar
 
--- | Emit a message to the output port
-emit :: Data out -> Z inp out ()
-emit = Z . Ziria.emit
-
 -- | Receive a message from the input port
 receiveVar :: Type inp => Ref inp -> Z inp out ()
 receiveVar = Z . Ziria.receiveVar
-
--- | Receive a message from the input port
-receive :: Type inp => Z inp out (Data inp)
-receive = Z Ziria.receive
-
--- | Loop infinitely over the given program
-loop :: Z inp out () -> Z inp out ()
-loop = Z . Ziria.loop . unZ
 
