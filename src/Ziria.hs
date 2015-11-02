@@ -14,7 +14,7 @@ import Control.Applicative
 #endif
 import Data.IORef
 
-import Control.Monad.Operational.Compositional
+import Control.Monad.Operational.Higher
 import Language.C.Monad
 import Language.Embedded.Expression
 import Language.Embedded.Imperative.CMD

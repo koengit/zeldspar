@@ -30,6 +30,7 @@ library
     feldspar-io,
     feldspar-language,
     imperative-edsl,
+    operational-alacarte,
     transformers
 
 test-suite Examples
