@@ -250,8 +250,8 @@ v =: a = Z $ singleton (v := a)
 readVar :: (VarPred exp a, EvalExp exp, CompExp exp) => Ref a -> Z exp inp out (exp a)
 readVar v = do
     w <- newVar
-    w =: unsafeFreezeRef v
-    return $ unsafeFreezeRef w
+    w =: veryUnsafeFreezeRef v
+    return $ veryUnsafeFreezeRef w
 
 -- | Emit a message to the output port
 emit :: exp out -> Z exp inp out ()
@@ -266,7 +266,7 @@ receive :: (VarPred exp inp, EvalExp exp, CompExp exp) => Z exp inp out (exp inp
 receive = do
     v <- newVar
     receiveVar v
-    return (unsafeFreezeRef v)
+    return (veryUnsafeFreezeRef v)
 
 -- | Loop infinitely over the given program
 loop :: Z exp inp out () -> Z exp inp out ()
