@@ -250,8 +250,11 @@ v =: a = Z $ singleton (v := a)
 readVar :: (VarPred exp a, EvalExp exp, CompExp exp) => Ref a -> Z exp inp out (exp a)
 readVar v = do
     w <- newVar
-    w =: veryUnsafeFreezeRef v
-    return $ veryUnsafeFreezeRef w
+    let a = veryUnsafeFreezeRef v
+    seq a (w =: a)
+    return $! veryUnsafeFreezeRef w
+  -- Strictness needed when evaluating in `IO` to force the read to be performed
+  -- before the next action. See imperative-edsl for more details.
 
 -- | Emit a message to the output port
 emit :: exp out -> Z exp inp out ()
@@ -266,7 +269,9 @@ receive :: (VarPred exp inp, EvalExp exp, CompExp exp) => Z exp inp out (exp inp
 receive = do
     v <- newVar
     receiveVar v
-    return (veryUnsafeFreezeRef v)
+    return $! veryUnsafeFreezeRef v
+  -- Strictness needed when evaluating in `IO` to force the read to be performed
+  -- before the next action. See imperative-edsl for more details.
 
 -- | Loop infinitely over the given program
 loop :: Z exp inp out () -> Z exp inp out ()
