@@ -15,11 +15,10 @@ import Control.Applicative
 import Data.IORef
 
 import Control.Monad.Operational.Higher
-import Language.C.Monad
 import Language.Embedded.Expression
 import Language.Embedded.Imperative.CMD
 import Language.Embedded.Imperative hiding (compile, icompile)
-import qualified Language.Embedded.Imperative as Imp
+import qualified Language.Embedded.Backend.C as Imp
 
 infix  6 :=
 infixr 4 >>>
@@ -129,7 +128,7 @@ compile :: forall exp inp out a
 compile prog = Imp.compile cprog
   where
     src   = externFun "receive" []
-    snk   = \o -> externProc "emit" [ValArg o]
+    snk   = \o -> externProc "emit" [valArg o]
     cprog = translate prog src snk :: Program (RefCMD exp :+: ControlCMD exp :+: CallCMD exp) a
 
 -- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:

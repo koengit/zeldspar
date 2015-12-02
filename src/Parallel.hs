@@ -25,8 +25,8 @@ import Data.Typeable
 #endif
 
 import Language.Embedded.Expression
-import Language.Embedded.Imperative hiding (compile)
-import qualified Language.Embedded.Imperative as Imp
+import Language.Embedded.Imperative hiding (runIO)
+import qualified Language.Embedded.Backend.C as Imp
 import Language.Embedded.Concurrent
 
 import Ziria
@@ -203,10 +203,10 @@ compilePar prog = Imp.compile $ cprog
   where
     src = do
       readokref <- initRef (litExp True)
-      x <- externFun "receive" [RefArg readokref]
+      x <- externFun "receive" [refArg readokref]
       readok <- getRef readokref
       return (x, readok)
-    snk o = externFun "emit" [ValArg o]
+    snk o = externFun "emit" [valArg o]
     cprog = translatePar prog src snk
               :: Program ((RefCMD exp :+:
                            ControlCMD exp :+:
