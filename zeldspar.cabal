@@ -35,9 +35,7 @@ library
 
   build-depends:
     base < 5,
-    imperative-edsl >= 0.5,
     raw-feldspar,
-    operational-alacarte,
     transformers
 
 test-suite Examples
