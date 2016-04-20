@@ -40,5 +40,6 @@ store = loop $ do
     i <- receive
     s <- lift $ initStore i
     o <- lift $ readStore s
+-- TODO: what about unsafeFreezeStore instead of readStore?
     emit o
 
