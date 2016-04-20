@@ -31,3 +31,13 @@ instance Parallel Z where
         => a inp mid m () -> b mid out m () -> ParZ inp out m ()
 l |>>>| r = liftP l :|>>>| liftP r
 
+
+-- | Left fold over a 'ParZ'
+foldParZ :: Monad m
+         => c inp
+         -> ParZ inp out m a
+         -> (forall inp out a. c inp -> Z inp out m a -> m (c out))
+         -> m (c out)
+foldParZ acc (LiftP p)    f = f acc p
+foldParZ acc (a :|>>>| b) f = foldParZ acc a f >>= \acc' -> foldParZ acc' b f
+

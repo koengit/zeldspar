@@ -16,6 +16,7 @@ extra-source-files:
 
 library
   exposed-modules:
+    Zeldspar.Parallel
     Zeldspar
     Ziria.Parallel
     Ziria
@@ -26,6 +27,9 @@ library
 
   default-extensions:
     GADTs
+    KindSignatures
+    MultiParamTypeClasses
+    RankNTypes
     ScopedTypeVariables
 
   build-depends:
