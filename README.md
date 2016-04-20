@@ -1,23 +1,14 @@
 # zeldspar
 Ziria + Feldspar = sant
 
-Building
---------
+## Installation
 
-Check out the following repositories:
+Here is a suggested incantation:
 
-  * Zeldspar itself
-  * https://github.com/emilaxelsson/imperative-edsl/
-  * https://github.com/feldspar/feldspar-language
-  * https://github.com/feldspar/feldspar-compiler
-  * https://github.com/emwap/feldspar-compiler-shim
-  * https://github.com/emilaxelsson/feldspar-io
+    git clone git@github.com:emilaxelsson/raw-feldspar
+    git clone git@github.com:koengit/zeldspar
+    cd zeldspar
+    cabal sandbox init
+    cabal sandbox add-source ../raw-feldspar
+    cabal install --constraint="language-c-quote -full-haskell-antiquotes"
 
-Set up a cabal sandbox in your Zeldspar repo, then install all the above
-dependencies *in one go*:
-
-    cabal install ../imperative-edsl/ ../feldspar-compiler ../feldspar-language/ ../feldspar-compiler-shim/ ../feldspar-io/
-
-Install any other dependencies using `cabal install --only-dependencies`.
-
-Now you're good to go. Have fun!
