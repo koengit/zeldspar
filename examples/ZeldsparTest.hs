@@ -1,49 +1,45 @@
 module ZeldsparTest where
 
+import qualified Prelude
 
-
-import Prelude ()
-
-import Feldspar
-import Feldspar.SimpleVector
-import Feldspar.IO hiding (compile)
-
+import Feldspar.Run
 import Zeldspar
+import Ziria
 
 
-
-kernel :: Data Int32 -> Data Int32
-kernel n = sum $ map (\x -> x*x) (0...n)
-
-prog1 :: Z Int32 Int32 ()
-prog1 = loop $ do
+prog1 :: Zun (Data Int32) (Data Int32) ()
+prog1 = {- loop $ -} do
     i <- receive
-    emit $ kernel i
+    lift $ printf "prog1 received %d\n" i
+    emit (i+1)
 
-prog2 :: Z Int32 Int32 ()
-prog2 = loop $ do
+prog2 :: Zun (Data Int32) (Data Int32) ()
+prog2 = {- loop $ -} do
     i <- receive
-    j <- receive
-    emit (i*j*3333)
+    lift $ printf "prog2 received %d\n" i
+    emit (i*2)
 
-delay = do
-    ir <- initRef (0 :: Data Word32)
-    while (fmap (<100000) $ getRef ir) $ modifyRef ir (+1)
+fused :: Zun (Data Int32) (Data Int32) ()
+fused = prog1 >>> prog2
 
-prog3 = do
-    inp <- fopen "input" ReadMode
-    out <- fopen "output" WriteMode
-    printf "files open, starting to loop..."
-    translate (prog1 >>> prog2) (fget' inp) (fprintf out "%d ")
+---
+
+saving :: Zun (Data Int32) (Data Int32) ()
+saving = do
+    i <- receive
+    r <- lift $ initRef i
+    v <- lift $ getRef r
+    lift $ printf "saved %d\n" v
+    emit v
+
+saved :: Zun (Data Int32) (Data Int32) ()
+saved = prog1 >>> saving >>> prog2
+
+---
+
+prepare :: Zun (Data Int32) (Data Int32) () -> Run ()
+prepare p = translate p src snk
   where
-    fget' h = do
-        delay  -- The program is an infinite loop so it has to be slowed down.
-               -- Otherwise it will quickly produce a gigantic file.
-        end <- feof h
-        return 0
-        ifE end (return 0) (fget h)
-
-test1   = compile prog1
-test1_2 = compile (prog1 >>> prog2)
-test3   = Feldspar.IO.icompile prog3
+    src = fget stdin
+    snk = printf "%d\n"
 
