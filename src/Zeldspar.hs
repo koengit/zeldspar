@@ -13,7 +13,7 @@ translate :: forall inp out a. Zun inp out a
           -> Run a
 translate (Z p) src snk = trans (p (\_ -> Stop))
   where
-    trans :: Action Run inp out -> Run a
+    trans :: Action inp out Run -> Run a
     trans (Lift rp)     = rp >>= \a -> trans a
     trans (Emit x p)    = snk x >> trans p
     trans (Receive p)   = src >>= trans . p

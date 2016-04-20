@@ -10,15 +10,15 @@ import Feldspar.Run
 -- * Representation
 --------------------------------------------------------------------------------
 
-data Action m inp out
-  = Lift (m (Action m inp out))
-  | Emit out (Action m inp out)
-  | Receive (inp -> Action m inp out)
+data Action inp out m
+  = Lift (m (Action inp out m))
+  | Emit out (Action inp out m)
+  | Receive (inp -> Action inp out m)
   | Stop
-  | Loop (Action m inp out)
-  | Times Length (Action m inp out) (Action m inp out)
+  | Loop (Action inp out m)
+  | Times Length (Action inp out m) (Action inp out m)
 
-newtype Z inp out m a = Z ((a -> Action m inp out) -> Action m inp out)
+newtype Z inp out m a = Z ((a -> Action inp out m) -> Action inp out m)
 
 instance Functor (Z inp out m) where
   fmap f (Z z) = Z (\k -> z (k . f))
@@ -61,7 +61,9 @@ times n (Z z) = Z (\k -> Times n (z (\_ -> Stop)) (k ()))
 (>>>) :: Monad m => Z inp mid m () -> Z mid out m () -> Z inp out m ()
 Z p >>> Z q = Z (\k -> fuse (p (\_ -> Stop)) (q (\_ -> Stop)) (k ()))
 
-fuse :: Monad m => Action m inp mid -> Action m mid out -> Action m inp out -> Action m inp out
+fuse :: Monad m
+     => Action inp mid m -> Action mid out m
+     -> Action inp out m -> Action inp out m
 fuse (Emit x p)  (Receive q) k = fuse p (q x) k
 fuse (Lift rp)   q           k = Lift ((\p -> fuse p q k) `fmap` rp)
 fuse p           (Lift rq)   k = Lift ((\q -> fuse p q k) `fmap` rq)
