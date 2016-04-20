@@ -25,14 +25,8 @@ library
   default-language: Haskell2010
 
   default-extensions:
-    ConstraintKinds
-    FlexibleContexts
-    FlexibleInstances
     GADTs
-    GeneralizedNewtypeDeriving
     ScopedTypeVariables
-    TypeSynonymInstances
-    TypeOperators
 
   build-depends:
     base < 5,
