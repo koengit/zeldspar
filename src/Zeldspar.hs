@@ -11,7 +11,7 @@ import Ziria
 
 type Zun inp out = Z inp out Run
 
-
+-- TODO: should it return Run ()? then end = return ()
 translate :: forall inp out a. Zun inp out a
           -> (Run inp)        -- ^ Source
           -> (out -> Run ())  -- ^ Sink
