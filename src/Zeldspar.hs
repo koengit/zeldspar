@@ -36,7 +36,7 @@ translate (Z p) src snk = trans (p (\_ -> Stop))
 --------------------------------------------------------------------------------
 
 store :: Storable a => Zun a a ()
-store = do
+store = loop $ do
     i <- receive
     s <- lift $ initStore i
     o <- lift $ readStore s
