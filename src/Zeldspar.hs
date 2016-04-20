@@ -5,7 +5,12 @@ import Feldspar.Run
 import Ziria
 
 
+--------------------------------------------------------------------------------
+-- * Representation and translation
+--------------------------------------------------------------------------------
+
 type Zun inp out = Z inp out Run
+
 
 translate :: forall inp out a. Zun inp out a
           -> (Run inp)        -- ^ Source
@@ -19,8 +24,21 @@ translate (Z p) src snk = trans (p (\_ -> Stop))
     trans (Receive p)   = src >>= trans . p
     trans Stop          = end
     trans (Loop p)      = while (return true) (void $ trans p) >> end
-    trans (Times n p k) = for (0, 1, Excl $ value n) (const $ void $ trans p) >> trans k
+    trans (Times n p k) = for (0, 1, Excl $ value n) (const $ void $ trans p)
+                       >> trans k
     
     end :: Run a
     end = return $ error "unreachable"
+
+
+--------------------------------------------------------------------------------
+-- * Utilities
+--------------------------------------------------------------------------------
+
+store :: Storable a => Zun a a ()
+store = do
+    i <- receive
+    s <- lift $ initStore i
+    o <- lift $ readStore s
+    emit o
 
