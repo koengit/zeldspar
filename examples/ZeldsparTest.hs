@@ -22,10 +22,28 @@ prog2 = loop $ do
 fused :: Zun (Data Int32) (Data Int32) ()
 fused = prog1 >>> prog2
 
----
-
 stored :: Zun (Data Int32) (Data Int32) ()
 stored = prog1 >>> store >>> prog2
+
+---
+
+prog3 :: Zun (Data Int32) (Data Int32) ()
+prog3 = loop $ do
+    i <- receive
+    emit (i + 1)
+    emit (i + 2)
+
+prog4 :: Zun (Data Int32) (Data Int32) ()
+prog4 = loop $ do
+    i <- receive
+    emit (i * 2)
+    i <- receive
+    emit (i * 3)
+    i <- receive
+    emit (i * 4)
+
+infinite :: Zun (Data Int32) (Data Int32) ()
+infinite = prog3 >>> prog4
 
 ---
 
