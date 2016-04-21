@@ -20,18 +20,18 @@ type ParZun inp out = ParZ inp out Run
 --------------------------------------------------------------------------------
 -- * Translation
 --------------------------------------------------------------------------------
-{-
-translatePar :: forall inp out a. (Type inp, Type out)
-             => ParZun (Data inp) (Data out) a
-             -> (Run (Data inp, Data Bool))    -- ^ Source
-             -> (Data out -> Run (Data Bool))  -- ^ Sink
-             -> Run a
+
+translatePar :: forall inp out. (Transferable inp, Transferable out)
+             => ParZun inp out ()
+             -> (Run (inp, Data Bool))    -- ^ Source
+             -> (out -> Run (Data Bool))  -- ^ Sink
+             -> Run ()
 translatePar ps inp out = do
-    i <- newCloseableChan (value 10)
+    i <- newChan (value 10)
     o <- foldParZ i ps $ \i p -> do
-      o <- newCloseableChan (value 10)
+      o <- newChan (value 10)
       forkWithId $ \t -> void $ do
-        translate p (readC t i o) (writeC t i o)
+        translate (p >> return ()) (readC t i o) (writeC t i o)
         closeChan i
         closeChan o
       return o
@@ -68,4 +68,13 @@ translatePar ps inp out = do
       iff stillopen
         (return ())
         (closeChan i >> killThread t)
--}
+
+-- | Left fold over a 'ParZ'
+foldParZ :: (Monad m, Transferable inp, Transferable out)
+         => c inp
+         -> ParZ inp out m a
+         -> (forall inp out a. (Transferable inp, Transferable out)
+             => c inp -> Z inp out m a -> m (c out))
+         -> m (c out)
+foldParZ acc (LiftP p)    f = f acc p
+foldParZ acc (a :|>>>| b) f = foldParZ acc a f >>= \acc' -> foldParZ acc' b f

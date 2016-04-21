@@ -3,6 +3,8 @@ module Ziria.Parallel where
 
 import Ziria
 
+-- FIXME: remove concrete Transferable contraint from here
+import Feldspar.Run.Concurrent
 
 --------------------------------------------------------------------------------
 -- * Representation
@@ -10,7 +12,7 @@ import Ziria
 
 data ParZ inp out m a
   = LiftP (Z inp out m ())
-  | forall mid. (ParZ inp mid m ()) :|>>>| (ParZ mid out m ())
+  | forall mid. Transferable mid => (ParZ inp mid m ()) :|>>>| (ParZ mid out m ())
 
 
 --------------------------------------------------------------------------------
@@ -27,17 +29,6 @@ instance Parallel ParZ where
 instance Parallel Z where
   liftP = LiftP
 
-(|>>>|) :: (Parallel a, Parallel b, Monad m)
+(|>>>|) :: (Parallel a, Parallel b, Monad m, Transferable mid)
         => a inp mid m () -> b mid out m () -> ParZ inp out m ()
 l |>>>| r = liftP l :|>>>| liftP r
-
-
--- | Left fold over a 'ParZ'
-foldParZ :: Monad m
-         => c inp
-         -> ParZ inp out m a
-         -> (forall inp out a. c inp -> Z inp out m a -> m (c out))
-         -> m (c out)
-foldParZ acc (LiftP p)    f = f acc p
-foldParZ acc (a :|>>>| b) f = foldParZ acc a f >>= \acc' -> foldParZ acc' b f
-
