@@ -8,13 +8,13 @@ import Ziria
 
 
 prog1 :: Zun (Data Int32) (Data Int32) ()
-prog1 = {- loop $ -} do
+prog1 = loop $ do
     i <- receive
     lift $ printf "prog1 received %d\n" i
     emit (i + 1)
 
 prog2 :: Zun (Data Int32) (Data Int32) ()
-prog2 = {- loop $ -} do
+prog2 = loop $ do
     i <- receive
     lift $ printf "prog2 received %d\n" i
     emit (i * 2)
@@ -34,4 +34,3 @@ prepare p = translate p src snk
   where
     src = fget stdin
     snk = printf "%d\n"
-

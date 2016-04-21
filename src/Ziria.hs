@@ -71,4 +71,5 @@ fuse _           Stop        k = k
 fuse p           (Emit x q)  k = Emit x (fuse p q k)
 fuse (Receive p) q           k = Receive (\x -> fuse (p x) q k)
 fuse Stop        _           k = k
-
+-- TODO: incomplete
+fuse (Loop p)    (Loop q)    k = Loop (fuse p q k)
