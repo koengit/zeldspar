@@ -3,8 +3,8 @@
 module Ziria where
 
 import Control.Monad
-import Feldspar.Run hiding ((.>>.))
-import Feldspar     hiding ((.>>.))
+import Feldspar.Run
+import Feldspar
 
 --------------------------------------------------------------------------------
 -- * Representation of Actions
@@ -12,10 +12,10 @@ import Feldspar     hiding ((.>>.))
 
 data Action inp out m a where
   Lift    :: m b -> (b -> Action inp out m a) -> Action inp out m a
-  Emit    :: Syntax out => out -> Action inp out m a -> Action inp out m a
+  Emit    :: out -> Action inp out m a -> Action inp out m a
   Receive :: (inp -> Action inp out m a) -> Action inp out m a
   Return  :: a -> Action inp out m a
-  Loop    :: Syntax a => a -> (a -> Action inp out m a) -> Action inp out m b
+  Loop    :: Storable a => a -> (a -> Action inp out m a) -> Action inp out m b
 
 instance Monad m => Functor (Action inp out m) where
   fmap f m = m >>= \x -> return (f x)
@@ -58,10 +58,10 @@ instance Monad m => Monad (Z inp out m) where
 lift :: Monad m => m a -> Z inp out m a
 lift m = Z (\k -> Lift m k)
 
-emit :: Syntax out => out -> Z inp out m ()
+emit :: out -> Z inp out m ()
 emit x = Z (\k -> Emit x (k ()))
 
-receive :: Syntax inp => Z inp out m inp
+receive :: Z inp out m inp
 receive = Z (\k -> Receive k)
 
 loop :: Z inp out m a -> Z inp out m b
@@ -71,23 +71,23 @@ loop (Z z) = Z (\_ -> Loop () (\_ -> z (\_ -> Return ())))
 -- * Pipelining
 --------------------------------------------------------------------------------
 
-(>>>) :: Monad m => Z inp mid m () -> Z mid out m () -> Z inp out m ()
+(>>>) :: (Monad m, Storable mid) => Z inp mid m () -> Z mid out m () -> Z inp out m ()
 Z p >>> Z q = Z (\k -> fuse (p Return) (q Return) (\_ _ -> k ()) (\_ _ -> k ()))
 
-fuse :: Monad m
+fuse :: (Monad m, Storable mid)
      => Action inp mid m a -> Action mid out m b
      -> (a -> Action mid out m b -> Action inp out m c) 
      -> (Action inp mid m a -> b -> Action inp out m c)
      -> Action inp out m c
 fuse (Emit x p)  q           k1 k2
   | hasReceive q                   = fuse p (push x q) k1 k2
-  | otherwise                      = fuse (Loop () Return) q k1 k2
 fuse (Lift m p)  q           k1 k2 = Lift m (\x -> fuse (p x) q k1 k2)
 fuse p           (Lift m q)  k1 k2 = Lift m (\y -> fuse p (q y) k1 k2)
 fuse p           (Return y)  k1 k2 = k2 p y
 fuse p           (Emit x q)  k1 k2 = Emit x (fuse p q k1 k2)
 fuse (Receive p) q           k1 k2 = Receive (\x -> fuse (p x) q k1 k2)
 fuse (Return x)  q           k1 k2 = k1 x q
+fuse (Emit x p)  q           k1 k2 = fuse (Loop () Return) q k1 k2
 
 fuse (Loop x p)  (Loop y q)  _  _  = fuseLoops x p y q
 fuse (Loop x p)  q           k1 k2 = fuse (p x >>= \x' -> Loop x' p) q k1 k2
@@ -99,7 +99,7 @@ hasReceive (Lift _ p)  = hasReceive (p (error "don't look at the result of lift"
 hasReceive (Return _)  = False
 hasReceive (Loop x p)  = hasReceive (p x)
 
-push :: (Monad m, Syntax inp) => inp -> Action inp out m a -> Action inp out m a
+push :: (Monad m, Storable inp) => inp -> Action inp out m a -> Action inp out m a
 push x (Emit y p)  = Emit y (push x p)
 push x (Receive p) = p x
 push x (Lift m p)  = Lift m (\y -> push x (p y))
@@ -111,7 +111,7 @@ push x (Loop s p)  =
     Return (s',x')
   )
 
-fuseLoops :: (Monad m, Syntax a, Syntax b)
+fuseLoops :: (Monad m, Storable mid, Storable a, Storable b)
           => a -> (a -> Action inp mid m a)
           -> b -> (b -> Action mid out m b)
           -> Action inp out m c

@@ -11,21 +11,24 @@ import Ziria
 
 type Zun inp out = Z inp out Run
 
-translate :: forall inp out a. Zun inp out ()
+translate :: forall inp out a .
+             Zun inp out a
           -> (Run inp)        -- ^ Source
           -> (out -> Run ())  -- ^ Sink
-          -> Run ()
-translate (Z p) src snk = trans (p (\_ -> Stop))
+          -> Run a
+translate (Z p) src snk = trans (p Return)
   where
-    trans :: Action inp out Run -> Run ()
-    trans (Lift rp)     = rp >>= \a -> trans a
+    trans :: forall a . Action inp out Run a -> Run a
+    trans (Lift m p)    = m >>= \a -> trans (p a)
     trans (Emit x p)    = snk x >> trans p
     trans (Receive p)   = src >>= trans . p
-    trans Stop          = return ()
-    trans (Loop p)      = while (return true) (void $ trans p)
-    trans (Times n p k) = for (0, 1, Excl $ value n) (const $ void $ trans p)
-                       >> trans k
-
+    trans (Return x)    = return x
+    trans (Loop s0 p)   = do st <- initStore s0
+                             while (return true) $
+                               do s <- readStore st
+                                  s' <- trans (p s)
+                                  writeStore st s'
+                             return (error "does not terminate")
 
 --------------------------------------------------------------------------------
 -- * Utilities
