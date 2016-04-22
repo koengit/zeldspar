@@ -71,8 +71,8 @@ loop (Z z) = Z (\_ -> Loop () (\_ -> z (\_ -> Return ())))
 -- * Pipelining
 --------------------------------------------------------------------------------
 
-(>||>) :: Monad m => Z inp mid m () -> Z mid out m () -> Z inp out m ()
-Z p >||> Z q = Z (\k -> fuse (p Return) (q Return) (\_ _ -> k ()) (\_ _ -> k ()))
+(>>>) :: Monad m => Z inp mid m () -> Z mid out m () -> Z inp out m ()
+Z p >>> Z q = Z (\k -> fuse (p Return) (q Return) (\_ _ -> k ()) (\_ _ -> k ()))
 
 fuse :: Monad m
      => Action inp mid m a -> Action mid out m b
@@ -123,4 +123,6 @@ fuseLoops x p y q =
   k1 x          q' = fuse (p x) q' k1 k2
   k2 (Return x) y  = Return (x,y)
   k2 p'         y  = fuse p' (q y) k1 k2
+
+--------------------------------------------------------------------------------
 
