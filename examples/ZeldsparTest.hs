@@ -50,6 +50,11 @@ infinite = prog3 >>> prog4
 
 ---
 
+infinite' :: Zun (Data Int32) (Data Int32) ()
+infinite' = (emit 13 >> prog3) >>> prog4
+
+---
+
 vecMake :: Zun (Data Int32) (Vector (Data Int32)) ()
 vecMake = loop $ do
     i <- receive
