@@ -3,8 +3,11 @@ module ZeldsparTest where
 import qualified Prelude
 
 import Feldspar.Run
+import Feldspar.Vector
 import Zeldspar
+import Zeldspar.Parallel
 import Ziria
+import Ziria.Parallel
 
 
 prog1 :: Zun (Data Int32) (Data Int32) ()
@@ -47,8 +50,57 @@ infinite = prog3 >>> prog4
 
 ---
 
+vecMake :: Zun (Data Int32) (Vector (Data Int32)) ()
+vecMake = loop $ do
+    i <- receive
+    emit $ map (i2n) (0 ... i2n i)
+
+vecInc :: (PrimType a, Num a) => Zun (Vector (Data a)) (Vector (Data a)) ()
+vecInc = loop $ do
+    v <- receive
+    emit (map (+1) v)
+
+vecRev :: PrimType a => Zun (Vector (Data a)) (Vector (Data a)) ()
+vecRev = loop $ do
+    v <- receive
+    emit (reverse v)
+
+vecTail :: Zun (Vector (Data Int32)) (Vector (Data Int32)) ()
+vecTail = loop $ do
+    v <- receive
+    lift $ printf "Dropping: %d\n" (head v)
+    emit (drop 1 v)
+
+vecSum :: Zun (Vector (Data Int32)) (Data Int32) ()
+vecSum = loop $ do
+    v <- receive
+    emit (sum v)
+
+fusedVec = vecMake >>> vecInc >>> vecRev >>> vecTail >>> vecSum
+
+storedVec = vecMake >>> vecInc >>> store >>> vecRev >>> vecTail >>> vecSum
+
+parVec = (vecMake >>> vecInc) |>>>| (vecRev >>> (vecTail >>> vecSum))
+
+---
+
 prepare :: Zun (Data Int32) (Data Int32) () -> Run ()
 prepare p = translate p src snk
   where
     src = fget stdin
     snk = printf "%d\n"
+
+---
+
+preparePar :: ParZun (Data Int32) (Data Int32) () -> Run ()
+preparePar p = translatePar p src snk
+  where
+    src = (\x -> (x, true)) <$> fget stdin
+    snk = \x -> printf "%d\n" x >> return true
+
+runPar p = runCompiled' opts (preparePar p)
+  where
+    opts = defaultExtCompilerOpts
+         { externalFlagsPost = ["-lpthread"]
+         , externalFlagsPre  = [ "-I/home/km/Work/elte/phd/research/chalmers/git/imperative-edsl/include"
+                               , "/home/km/Work/elte/phd/research/chalmers/git/imperative-edsl/csrc/chan.c" ] }

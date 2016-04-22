@@ -27,9 +27,9 @@ translatePar :: forall inp out. (Transferable inp, Transferable out)
              -> (out -> Run (Data Bool))  -- ^ Sink
              -> Run ()
 translatePar ps inp out = do
-    i <- newChan (value 10)
+    i <- newChan (value 1000)
     o <- foldParZ i ps $ \i p -> do
-      o <- newChan (value 10)
+      o <- newChan (value 1000)
       forkWithId $ \t -> void $ do
         translate (p >> return ()) (readC t i o) (writeC t i o)
         closeChan i
