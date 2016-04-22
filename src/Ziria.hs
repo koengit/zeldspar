@@ -16,7 +16,7 @@ data Action inp out m
   | Receive (inp -> Action inp out m)
   | Stop
   | Loop (Action inp out m)
-  | Times Length (Action inp out m) (Action inp out m)
+  -- | Times Length (Action inp out m) (Action inp out m)
 
 newtype Z inp out m a = Z ((a -> Action inp out m) -> Action inp out m)
 
@@ -50,9 +50,8 @@ receive = Z (\k -> Receive k)
 loop :: Z inp out m () -> Z inp out m ()
 loop (Z z) = Z (\_ -> Loop (z (\_ -> Stop)))
 
-times :: Length -> Z inp out m () -> Z inp out m ()
-times n (Z z) = Z (\k -> Times n (z (\_ -> Stop)) (k ()))
-
+--times :: Length -> Z inp out m () -> Z inp out m ()
+--times n (Z z) = Z (\k -> Times n (z (\_ -> Stop)) (k ()))
 
 --------------------------------------------------------------------------------
 -- * Pipelining
@@ -73,3 +72,4 @@ fuse (Receive p) q           k = Receive (\x -> fuse (p x) q k)
 fuse Stop        _           k = k
 -- TODO: incomplete
 fuse (Loop p)    (Loop q)    k = Loop (fuse p q k)
+
