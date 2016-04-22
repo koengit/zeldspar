@@ -2,12 +2,8 @@ module ZeldsparTest where
 
 import qualified Prelude
 
-import Feldspar.Run
-import Feldspar.Vector
 import Zeldspar
 import Zeldspar.Parallel
-import Ziria
-import Ziria.Parallel
 
 
 prog1 :: Zun (Data Int32) (Data Int32) ()
@@ -107,5 +103,5 @@ runPar p = runCompiled' opts (preparePar p)
   where
     opts = defaultExtCompilerOpts
          { externalFlagsPost = ["-lpthread"]
-         , externalFlagsPre  = [ "-I/home/km/Work/elte/phd/research/chalmers/git/imperative-edsl/include"
-                               , "/home/km/Work/elte/phd/research/chalmers/git/imperative-edsl/csrc/chan.c" ] }
+         , externalFlagsPre  = [ "-I../imperative-edsl/include"
+                               , "../imperative-edsl/csrc/chan.c" ] }

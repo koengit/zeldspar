@@ -1,13 +1,17 @@
 -- | Parallel stream composition for Zeldspar
-module Zeldspar.Parallel where
+module Zeldspar.Parallel
+  ( module F
+  , module Z
+  , ParZun
+  , translatePar
+  ) where
 
 import Prelude hiding (break)
 
-import Feldspar.Run
-import Feldspar.Run.Concurrent
-import Zeldspar
-import Ziria
-import Ziria.Parallel
+import Feldspar.Run.Concurrent as F
+import Zeldspar as Z
+import Ziria as Z
+import Ziria.Parallel as Z
 
 
 --------------------------------------------------------------------------------

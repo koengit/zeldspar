@@ -1,10 +1,9 @@
 -- | Parallel stream composition for Ziria
 module Ziria.Parallel where
 
+import Feldspar.Run.Concurrent
 import Ziria
 
--- FIXME: remove concrete Transferable contraint from here
-import Feldspar.Run.Concurrent
 
 --------------------------------------------------------------------------------
 -- * Representation

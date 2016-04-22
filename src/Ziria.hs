@@ -1,10 +1,8 @@
-{-# LANGUAGE GADTs, RankNTypes #-}
 -- | A generic implementation of sequential Ziria programs
 module Ziria where
 
-import Control.Monad
-import Feldspar.Run
 import Feldspar
+
 
 --------------------------------------------------------------------------------
 -- * Representation of Actions
@@ -33,6 +31,7 @@ instance Monad m => Monad (Action inp out m) where
   Return x  >>= k = k x
   Loop x p  >>= k = Loop x p
 
+
 --------------------------------------------------------------------------------
 -- * Z monad
 --------------------------------------------------------------------------------
@@ -51,6 +50,7 @@ instance Monad m => Monad (Z inp out m) where
   return x  = Z (\k -> k x)
   Z z >>= h = Z (\k -> z (\x -> let Z z' = h x in z' k))
 
+
 --------------------------------------------------------------------------------
 -- * Front end
 --------------------------------------------------------------------------------
@@ -67,6 +67,7 @@ receive = Z (\k -> Receive k)
 loop :: Z inp out m a -> Z inp out m b
 loop (Z z) = Z (\_ -> Loop () (\_ -> z (\_ -> Return ())))
 
+
 --------------------------------------------------------------------------------
 -- * Pipelining
 --------------------------------------------------------------------------------
@@ -76,7 +77,7 @@ Z p >>> Z q = Z (\k -> fuse (p Return) (q Return) (\_ _ -> k ()) (\_ _ -> k ()))
 
 fuse :: (Monad m, Storable mid)
      => Action inp mid m a -> Action mid out m b
-     -> (a -> Action mid out m b -> Action inp out m c) 
+     -> (a -> Action mid out m b -> Action inp out m c)
      -> (Action inp mid m a -> b -> Action inp out m c)
      -> Action inp out m c
 fuse (Emit x p)  q           k1 k2
@@ -115,14 +116,11 @@ fuseLoops :: (Monad m, Storable mid, Storable a, Storable b)
           => a -> (a -> Action inp mid m a)
           -> b -> (b -> Action mid out m b)
           -> Action inp out m c
-fuseLoops x p y q = 
-  Loop (x,y) (\(x,y) -> 
+fuseLoops x p y q =
+  Loop (x,y) (\(x,y) ->
     fuse (p x) (q y) k1 k2
   )
  where
   k1 x          q' = fuse (p x) q' k1 k2
   k2 (Return x) y  = Return (x,y)
   k2 p'         y  = fuse p' (q y) k1 k2
-
---------------------------------------------------------------------------------
-
