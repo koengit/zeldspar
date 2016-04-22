@@ -1,150 +1,39 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
-
--- | An implementation of Ziria that uses Feldspar to represent pure computations
+-- | An implementation of Ziria that uses Feldspar to represent computations
 module Zeldspar where
 
+import Feldspar.Run
+import Ziria
 
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-#endif
+--------------------------------------------------------------------------------
+-- * Representation and translation
+--------------------------------------------------------------------------------
 
-import Language.Embedded.Concurrent
+type Zun inp out = Z inp out Run
 
-import Feldspar
-import Feldspar.IO
-
-import qualified Ziria
-import Parallel (Parallel (..))
-import qualified Parallel as Ziria
-
-
-
--- | The type of sequential Zeldspar programs
-newtype Z inp out a = Z { unZ :: Ziria.Z Data inp out a }
-  deriving (Functor, Applicative, Monad)
-
-newtype ParZ inp out a = ParZ { unParZ :: Ziria.ParProg Data inp out a }
-
-instance Ziria.Parallel Z
+translate :: forall inp out a. Zun inp out ()
+          -> (Run inp)        -- ^ Source
+          -> (out -> Run ())  -- ^ Sink
+          -> Run ()
+translate (Z p) src snk = trans (p (\_ -> Stop))
   where
-    type PExp Z = Data
-    liftP = liftP . unZ
-
-instance Ziria.Parallel ParZ
-  where
-    type PExp ParZ = Data
-    liftP = liftP . unParZ
-
--- | Interpret a Zeldspar program in the 'IO' monad
-runZ
-    :: Z inp out a
-    -> IO inp          -- ^ Source
-    -> (out -> IO ())  -- ^ Sink
-    -> IO a
-runZ = Ziria.runIO . unZ
-
--- | Interpret a parallel Zeldspar program in the 'IO' monad
-runParZ
-    :: (Type inp, Type out)
-    => ParZ inp out ()
-    -> IO inp          -- ^ Source
-    -> (out -> IO ())  -- ^ Sink
-    -> IO ()
-runParZ = Ziria.runPar . unParZ
-
--- | Translate 'Z' to 'Program'
-translate
-    :: Z inp out a
-    -> Program (Data inp)        -- ^ Source
-    -> (Data out -> Program ())  -- ^ Sink
-    -> Program a
-translate z src snk =
-    Program $ Ziria.translate (unZ z) (unProgram src) (unProgram . snk)
-
--- | Translate 'ParZ' to 'Program'
-translatePar :: (Type inp, Type out)
-    => ParZ inp out ()
-    -> Program (Data inp, Data Bool)     -- ^ Source
-    -> (Data out -> Program (Data Bool)) -- ^ Sink
-    -> Program ()
-translatePar z src snk =
-    Program $ Ziria.translatePar (unParZ z) (unProgram src) (unProgram . snk)
-
--- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:
--- @receive@ and @emit@.
-compile :: (Type inp, Type out) => Z inp out a -> String
-compile = Ziria.compile . unZ
-
--- | Simplified compilation from 'ParZ' to C. Input/output is done via two external functions:
--- @receive@ and @emit@.
-compilePar :: (Type inp, Type out) => ParZ inp out () -> String
-compilePar = Ziria.compilePar . unParZ
-
--- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:
--- @receive@ and @emit@.
-icompile :: (Type inp, Type out) => Z inp out a -> IO ()
-icompile = Ziria.icompile . unZ
-
--- | Simplified compilation from 'ParZ' to C. Input/output is done via two external functions:
--- @receive@ and @emit@.
-icompilePar :: (Type ChanBound, Type inp, Type out) => ParZ inp out () -> IO ()
-icompilePar = Ziria.icompilePar . unParZ
-
--- | Program composition. The programs are always fused.
-(>>>) :: Z inp msg () -> Z msg out () -> Z inp out ()
-Z p1 >>> Z p2 = Z (p1 Ziria.>>> p2)
-
--- | Parallel program composition
-(|>>>|)
-    :: ( Type i
-       , Type x
-       , Type o
-       , Parallel a, PExp a ~ Data
-       , Parallel b, PExp b ~ Data
-       )
-    => a i x () -> b x o () -> ParZ i o ()
-p1 |>>>| p2 = ParZ (p1 Ziria.|>>>| p2)
-
--- | Emit a message to the output port
-emit :: Data out -> Z inp out ()
-emit = Z . Ziria.emit
-
--- | Receive a message from the input port
-receive :: Type inp => Z inp out (Data inp)
-receive = Z Ziria.receive
-
--- | Loop infinitely over the given program
-loop :: Z inp out () -> Z inp out ()
-loop = Z . Ziria.loop . unZ
+    trans :: Action inp out Run -> Run ()
+    trans (Lift rp)     = rp >>= \a -> trans a
+    trans (Emit x p)    = snk x >> trans p
+    trans (Receive p)   = src >>= trans . p
+    trans Stop          = return ()
+    trans (Loop p)      = while (return true) (void $ trans p)
+    trans (Times n p k) = for (0, 1, Excl $ value n) (const $ void $ trans p)
+                       >> trans k
 
 
+--------------------------------------------------------------------------------
+-- * Utilities
+--------------------------------------------------------------------------------
 
--- | Create an uninitialized variable
-newVar :: Type a => Z inp out (Ref a)
-newVar = Z Ziria.newVar
-
--- | Create an initialized variable
-initVar :: Type a => Data a -> Z inp out (Ref a)
-initVar = Z . Ziria.initVar
-
--- | Assign to a variable
-(=:) :: Type a => Ref a -> Data a -> Z inp out ()
-v =: a = Z (v Ziria.=: a)
-
--- | Read a variable
-readVar :: Type a => Ref a -> Z inp out (Data a)
-readVar = Z . Ziria.readVar
-
--- | Receive a message from the input port
-receiveVar :: Type inp => Ref inp -> Z inp out ()
-receiveVar = Z . Ziria.receiveVar
-
+store :: Storable a => Zun a a ()
+store = loop $ do
+    i <- receive
+    s <- lift $ initStore i
+    o <- lift $ unsafeFreezeStore s
+    emit o
