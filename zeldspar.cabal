@@ -1,5 +1,5 @@
 name:                zeldspar
-version:             0.1
+version:             0.2
 synopsis:            Ziria + Feldspar
 -- description:
 license:             BSD3
@@ -16,21 +16,25 @@ extra-source-files:
 
 library
   exposed-modules:
-    Ziria
-    Parallel
+    Zeldspar.Parallel
     Zeldspar
+    Ziria.Parallel
+    Ziria
 
   hs-source-dirs: src
 
   default-language: Haskell2010
 
+  default-extensions:
+    GADTs
+    KindSignatures
+    MultiParamTypeClasses
+    RankNTypes
+    ScopedTypeVariables
+
   build-depends:
-    base                    >=4.6 && <4.9,
-    feldspar-compiler-shim,
-    feldspar-io,
-    feldspar-language,
-    imperative-edsl,
-    operational-alacarte,
+    base < 5,
+    raw-feldspar,
     transformers
 
 test-suite Examples
@@ -44,7 +48,6 @@ test-suite Examples
 
   build-depends:
     base,
-    feldspar-language,
-    feldspar-io,
     imperative-edsl,
+    raw-feldspar,
     zeldspar

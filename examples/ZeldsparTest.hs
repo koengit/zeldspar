@@ -1,49 +1,106 @@
 module ZeldsparTest where
 
+import qualified Prelude
 
-
-import Prelude ()
-
-import Feldspar
-import Feldspar.SimpleVector
-import Feldspar.IO hiding (compile)
-
+import Feldspar.Run
+import Feldspar.Vector
 import Zeldspar
+import Zeldspar.Parallel
+import Ziria
+import Ziria.Parallel
 
 
-
-kernel :: Data Int32 -> Data Int32
-kernel n = sum $ map (\x -> x*x) (0...n)
-
-prog1 :: Z Int32 Int32 ()
+prog1 :: Zun (Data Int32) (Data Int32) ()
 prog1 = loop $ do
     i <- receive
-    emit $ kernel i
+    lift $ printf "prog1 received %d\n" i
+    emit (i + 1)
 
-prog2 :: Z Int32 Int32 ()
+prog2 :: Zun (Data Int32) (Data Int32) ()
 prog2 = loop $ do
     i <- receive
-    j <- receive
-    emit (i*j*3333)
+    lift $ printf "prog2 received %d\n" i
+    emit (i * 2)
 
-delay = do
-    ir <- initRef (0 :: Data Word32)
-    while (fmap (<100000) $ getRef ir) $ modifyRef ir (+1)
+fused :: Zun (Data Int32) (Data Int32) ()
+fused = prog1 >>> prog2
 
-prog3 = do
-    inp <- fopen "input" ReadMode
-    out <- fopen "output" WriteMode
-    printf "files open, starting to loop..."
-    translate (prog1 >>> prog2) (fget' inp) (fprintf out "%d ")
+stored :: Zun (Data Int32) (Data Int32) ()
+stored = prog1 >>> store >>> prog2
+
+---
+
+prog3 :: Zun (Data Int32) (Data Int32) ()
+prog3 = loop $ do
+    i <- receive
+    emit (i + 1)
+    emit (i + 2)
+
+prog4 :: Zun (Data Int32) (Data Int32) ()
+prog4 = loop $ do
+    i <- receive
+    emit (i * 2)
+    i <- receive
+    emit (i * 3)
+    i <- receive
+    emit (i * 4)
+
+infinite :: Zun (Data Int32) (Data Int32) ()
+infinite = prog3 >>> prog4
+
+---
+
+vecMake :: Zun (Data Int32) (Vector (Data Int32)) ()
+vecMake = loop $ do
+    i <- receive
+    emit $ map (i2n) (0 ... i2n i)
+
+vecInc :: (PrimType a, Num a) => Zun (Vector (Data a)) (Vector (Data a)) ()
+vecInc = loop $ do
+    v <- receive
+    emit (map (+1) v)
+
+vecRev :: PrimType a => Zun (Vector (Data a)) (Vector (Data a)) ()
+vecRev = loop $ do
+    v <- receive
+    emit (reverse v)
+
+vecTail :: Zun (Vector (Data Int32)) (Vector (Data Int32)) ()
+vecTail = loop $ do
+    v <- receive
+    lift $ printf "Dropping: %d\n" (head v)
+    emit (drop 1 v)
+
+vecSum :: Zun (Vector (Data Int32)) (Data Int32) ()
+vecSum = loop $ do
+    v <- receive
+    emit (sum v)
+
+fusedVec = vecMake >>> vecInc >>> vecRev >>> vecTail >>> vecSum
+
+storedVec = vecMake >>> vecInc >>> store >>> vecRev >>> vecTail >>> vecSum
+
+parVec = (vecMake >>> vecInc) |>>>| (vecRev >>> (vecTail >>> vecSum))
+
+---
+
+prepare :: Zun (Data Int32) (Data Int32) () -> Run ()
+prepare p = translate p src snk
   where
-    fget' h = do
-        delay  -- The program is an infinite loop so it has to be slowed down.
-               -- Otherwise it will quickly produce a gigantic file.
-        end <- feof h
-        return 0
-        ifE end (return 0) (fget h)
+    src = fget stdin
+    snk = printf "%d\n"
 
-test1   = compile prog1
-test1_2 = compile (prog1 >>> prog2)
-test3   = Feldspar.IO.icompile prog3
+---
 
+preparePar :: ParZun (Data Int32) (Data Int32) () -> Run ()
+preparePar p = translatePar p src snk
+  where
+    src = (\x -> (x, true)) <$> fget stdin
+    snk = \x -> printf "%d\n" x >> return true
+
+runPar p = runCompiled' opts (preparePar p)
+  where
+    opts = defaultExtCompilerOpts
+         { externalFlagsPost = ["-lpthread"]
+         , externalFlagsPre  = [ "-I/home/km/Work/elte/phd/research/chalmers/git/imperative-edsl/include"
+                               , "/home/km/Work/elte/phd/research/chalmers/git/imperative-edsl/csrc/chan.c" ] }

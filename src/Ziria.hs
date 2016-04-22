@@ -1,278 +1,75 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
-
 -- | A generic implementation of sequential Ziria programs
 module Ziria where
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-#endif
-import Data.IORef
-
-import Control.Monad.Operational.Higher
-import Language.Embedded.Expression
-import Language.Embedded.Imperative.CMD
-import Language.Embedded.Imperative hiding (compile, icompile)
-import qualified Language.Embedded.Backend.C as Imp
-
-infix  6 :=
-infixr 4 >>>
+import Control.Monad
+import qualified Control.Monad.Trans.Class as MT
+import Feldspar.Run
 
 
-
-----------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- * Representation
-----------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
--- | Ziria instructions
-data ZiriaCMD exp inp out prog a
-  where
-    NewVar  :: VarPred exp a => ZiriaCMD exp inp out prog (Ref a)
-    (:=)    :: VarPred exp a => Ref a -> exp a -> ZiriaCMD exp inp out prog ()
-    Emit    :: exp out -> ZiriaCMD exp inp out prog ()
-    Receive :: VarPred exp inp => Ref inp -> ZiriaCMD exp inp out prog ()
-    Loop    :: prog () -> ZiriaCMD exp inp out prog ()
-    EndL    :: prog () -> ZiriaCMD exp inp out prog ()
+data Action inp out m
+  = Lift (m (Action inp out m))
+  | Emit out (Action inp out m)
+  | Receive (inp -> Action inp out m)
+  | Stop
+  | Loop (Action inp out m)
+  | Times Length (Action inp out m) (Action inp out m)
 
--- `ZiriaCMD` is purposefully designed so that most instructions return `()`. The reason is that
--- `unloop` needs to be able to rotate the body of a loop so that the first instruction is placed
--- before the loop and then again at the end of the body. This kind of rotating works well for
--- instructions without results, but it is generally not possible when result values are involved
--- (it doesn't make sense to bind a value at the end of a loop, since that value immediately goes
--- out of scope). The exception is `NewVar` which returns a `Ref`. In this particular case it is
--- possible for `unloop` to just put the instruction before the loop and not at the end of the body.
--- A new variable is created before the loop, and the same variable is reused throughout the loop.
+newtype Z inp out m a = Z ((a -> Action inp out m) -> Action inp out m)
 
-instance HFunctor (ZiriaCMD exp inp out)
-  where
-    hfmap _ NewVar      = NewVar
-    hfmap _ (v := a)    = v := a
-    hfmap _ (Emit a)    = Emit a
-    hfmap _ (Receive r) = Receive r
-    hfmap f (Loop p)    = Loop (f p)
-    hfmap f (EndL p)    = EndL (f p)
+instance Functor (Z inp out m) where
+  fmap f (Z z) = Z (\k -> z (k . f))
 
--- | The type of sequential Ziria programs
-newtype Z exp inp out a = Z { unZ :: Program (ZiriaCMD exp inp out) a }
-  deriving (Functor, Applicative, Monad)
+instance Monad m => Applicative (Z inp out m) where
+  pure  = return
+  (<*>) = ap
+
+instance Monad m => Monad (Z inp out m) where
+  return x  = Z (\k -> k x)
+  Z z >>= h = Z (\k -> z (\x -> let Z z' = h x in z' k))
+
+instance MT.MonadTrans (Z inp out) where lift = lift
 
 
-
-----------------------------------------------------------------------------------------------------
--- * Interpretation
-----------------------------------------------------------------------------------------------------
-
-runCMD :: EvalExp exp => IO inp -> (out -> IO ()) -> ZiriaCMD exp inp out IO a -> IO a
-runCMD src snk NewVar                = fmap RefEval $ newIORef (error "uninitialized reference")
-runCMD src snk (RefEval r := a)      = writeIORef r $ evalExp a
-runCMD src snk (Emit a)              = snk $ evalExp a
-runCMD src snk (Receive (RefEval r)) = src >>= writeIORef r
-runCMD src snk l@(Loop p)            = p >> runCMD src snk l
-
--- | Interpret a Ziria program in the 'IO' monad
-runIO :: EvalExp exp => Z exp inp out a -> IO inp -> (out -> IO ()) -> IO a
-runIO prog src snk = interpretWithMonad (runCMD src snk) $ unZ prog
-
-
-
-----------------------------------------------------------------------------------------------------
--- * Compilation
-----------------------------------------------------------------------------------------------------
-
-transCMD
-    :: ( EvalExp (IExp instr)
-       , CompExp (IExp instr)
-       , VarPred (IExp instr) Bool
-       , RefCMD (IExp instr)     :<: instr
-       , ControlCMD (IExp instr) :<: instr
-       )
-    => Program instr (IExp instr inp)        -- ^ Source
-    -> (IExp instr out -> Program instr ())  -- ^ Sink
-    -> ZiriaCMD (IExp instr) inp out (Program instr) a
-    -> Program instr a
-transCMD src snk NewVar      = newRef
-transCMD src snk (r := a)    = setRef r a
-transCMD src snk (Emit a)    = snk a
-transCMD src snk (Receive r) = src >>= setRef r
-transCMD src snk l@(Loop p)  = while (return $ litExp True) p
-
--- | Translate 'Z' to 'Program'
-translate
-    :: ( EvalExp (IExp instr)
-       , CompExp (IExp instr)
-       , VarPred (IExp instr) Bool
-       , RefCMD (IExp instr)     :<: instr
-       , ControlCMD (IExp instr) :<: instr
-       )
-    => Z (IExp instr) inp out a
-    -> Program instr (IExp instr inp)        -- ^ Source
-    -> (IExp instr out -> Program instr ())  -- ^ Sink
-    -> Program instr a
-translate prog src snk = interpretWithMonad (transCMD src snk) $ unZ prog
-
--- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:
--- @receive@ and @emit@.
-compile :: forall exp inp out a
-    .  ( EvalExp exp
-       , CompExp exp
-       , VarPred exp Bool
-       , VarPred exp inp
-       , VarPred exp out
-       )
-    => Z exp inp out a -> String
-compile prog = Imp.compile cprog
-  where
-    src   = externFun "receive" []
-    snk   = \o -> externProc "emit" [valArg o]
-    cprog = translate prog src snk :: Program (RefCMD exp :+: ControlCMD exp :+: CallCMD exp) a
-
--- | Simplified compilation from 'Z' to C. Input/output is done via two external functions:
--- @receive@ and @emit@.
-icompile
-    :: ( EvalExp exp
-       , CompExp exp
-       , VarPred exp Bool
-       , VarPred exp inp
-       , VarPred exp out
-       )
-    => Z exp inp out a -> IO ()
-icompile = putStrLn . compile
-
-
-
-----------------------------------------------------------------------------------------------------
--- * Pipelining
-----------------------------------------------------------------------------------------------------
-
--- | Program composition. The programs are always fused.
-(>>>) :: Z exp inp msg () -> Z exp msg out () -> Z exp inp out ()
-Z p >>> Z q = p ->>>- q
-  where
-    (->>>-) :: Program (ZiriaCMD exp inp msg) ()
-            -> Program (ZiriaCMD exp msg out) ()
-            -> Z exp inp out ()
-    prog1 ->>>- prog2 = view prog1 .>>>. view prog2
-
-    endl = singleton . EndL
-
-    (.>>>.) :: ProgramView (ZiriaCMD exp inp msg) ()
-            -> ProgramView (ZiriaCMD exp msg out) ()
-            -> Z exp inp out ()
-
-    -- termination
-    (Return a) .>>>. _          = return a
-    _          .>>>. (Return b) = return b
-
-    -- variables
-    (NewVar :>>= p) .>>>. q               = newVar >>= \v -> p v ->>>- unview q
-    p               .>>>. (NewVar :>>= q) = newVar >>= \v -> unview p ->>>- q v
-
-    ((v := a) :>>= p) .>>>. q                 = (v =: a) >> (p () ->>>- unview q)
-    p                 .>>>. ((v := a) :>>= q) = (v =: a) >> (unview p ->>>- q ())
-
-    -- connect
-    (Emit m :>>= p) .>>>. (Receive v :>>= q) = (v =: m) >> (p () ->>>- q ())
-
-    -- loop
-    (Loop p :>>= _) .>>>. (Loop q :>>= _) = loop ((p >> endl p) ->>>- (q >> endl q))
-
-    (Loop p :>>= _) .>>>. q = case view p of
-                                Return _ -> blockInp q
-                                p'       -> unloop p' >>> Z (unview q)
-
-    p .>>>. (Loop q :>>= _) = case view q of
-                                Return _ -> blockOut p
-                                q'       -> Z (unview p) >>> unloop q'
-
-    -- outside actions
-    (Receive v :>>= p) .>>>. q               = receiveVar v >> (p () ->>>- unview q)
-    p                  .>>>. (Emit m :>>= q) = emit m       >> (unview p ->>>- q ())
-
-    -- end loop
-    (EndL _ :>>= _) .>>>. (EndL _ :>>= _) = return ()
-    (EndL p :>>= _) .>>>. q               = (p >> singleton (EndL p)) ->>>- unview q
-    p               .>>>. (EndL q :>>= _) = unview p ->>>- (q >> singleton (EndL q))
-
-unloop :: ProgramView (ZiriaCMD exp inp out) () -> Z exp inp out ()
-unloop (NewVar        :>>= q) = newVar >>= \v -> loop (Z $ q v)  -- No need for newVar at the end
-unloop (i@(_ := _)    :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
-unloop (i@(Emit _)    :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
-unloop (i@(Receive _) :>>= q) = Z (singleton i) >> loop (Z (q () >> singleton i))
-unloop (Loop q        :>>= _) = unloop (view q)
-  -- TODO It's assumed that `p /= Return a`. This could be captured in the type.
-
-blockInp :: ProgramView (ZiriaCMD exp inp out) () -> Z exp xxx out ()
-blockInp (NewVar    :>>= p) = newVar >>= \v -> blockInp (view $ p v)
-blockInp ((v := e)  :>>= p) = (v =: e) >> blockInp (view $ p ())
-blockInp (Emit m    :>>= p) = emit m >> blockInp (view $ p ())
-blockInp (Receive _ :>>= _) = loop (return ())
-blockInp (Loop p    :>>= _) = loop (blockInp $ view p)
-blockInp (EndL p    :>>= q) = blockInp $ view $ unZ $ loop (Z p) >>= Z . q
-blockInp (Return a)         = return a
-
-blockOut :: ProgramView (ZiriaCMD exp inp out) () -> Z exp inp xxx ()
-blockOut (NewVar    :>>= p) = newVar >>= \v -> blockOut (view $ p v)
-blockOut ((v := e)  :>>= p) = (v =: e) >> blockOut (view $ p ())
-blockOut (Emit _    :>>= _) = loop (return ())
-blockOut (Receive v :>>= p) = receiveVar v >> blockOut (view $ p ())
-blockOut (Loop p    :>>= _) = loop (blockOut $ view p)
-blockOut (EndL p    :>>= q) = blockOut $ view $ unZ $ loop (Z p) >>= Z. q
-blockOut (Return a)         = return a
-
-
-
-----------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- * Front end
-----------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
--- | Create an uninitialized variable
-newVar :: VarPred exp a => Z exp inp out (Ref a)
-newVar = Z $ singleton NewVar
+lift :: Monad m => m a -> Z inp out m a
+lift r = Z (\k -> Lift (r >>= (return . k)))
 
--- | Create an initialized variable
-initVar :: VarPred exp a => exp a -> Z exp inp out (Ref a)
-initVar a = do
-    v <- newVar
-    v =: a
-    return v
+emit :: out -> Z inp out m ()
+emit x = Z (\k -> Emit x (k ()))
 
--- | Assign to a variable
-(=:) :: VarPred exp a => Ref a -> exp a -> Z exp inp out ()
-v =: a = Z $ singleton (v := a)
+receive :: Z inp out m inp
+receive = Z (\k -> Receive k)
 
--- | Read a variable
-readVar :: (VarPred exp a, EvalExp exp, CompExp exp) => Ref a -> Z exp inp out (exp a)
-readVar v = do
-    w <- newVar
-    let a = veryUnsafeFreezeRef v
-    seq a (w =: a)
-    return $! veryUnsafeFreezeRef w
-  -- Strictness needed when evaluating in `IO` to force the read to be performed
-  -- before the next action. See imperative-edsl for more details.
+loop :: Z inp out m () -> Z inp out m ()
+loop (Z z) = Z (\_ -> Loop (z (\_ -> Stop)))
 
--- | Emit a message to the output port
-emit :: exp out -> Z exp inp out ()
-emit = Z . singleton . Emit
+times :: Length -> Z inp out m () -> Z inp out m ()
+times n (Z z) = Z (\k -> Times n (z (\_ -> Stop)) (k ()))
 
--- | Receive a message from the input port
-receiveVar :: VarPred exp inp => Ref inp -> Z exp inp out ()
-receiveVar = Z . singleton . Receive
 
--- | Receive a message from the input port
-receive :: (VarPred exp inp, EvalExp exp, CompExp exp) => Z exp inp out (exp inp)
-receive = do
-    v <- newVar
-    receiveVar v
-    return $! veryUnsafeFreezeRef v
-  -- Strictness needed when evaluating in `IO` to force the read to be performed
-  -- before the next action. See imperative-edsl for more details.
+--------------------------------------------------------------------------------
+-- * Pipelining
+--------------------------------------------------------------------------------
 
--- | Loop infinitely over the given program
-loop :: Z exp inp out () -> Z exp inp out ()
-loop = Z . singleton . Loop . unZ
+(>>>) :: Monad m => Z inp mid m () -> Z mid out m () -> Z inp out m ()
+Z p >>> Z q = Z (\k -> fuse (p (\_ -> Stop)) (q (\_ -> Stop)) (k ()))
 
+fuse :: Monad m
+     => Action inp mid m -> Action mid out m
+     -> Action inp out m -> Action inp out m
+fuse (Emit x p)  (Receive q) k = fuse p (q x) k
+fuse (Lift rp)   q           k = Lift ((\p -> fuse p q k) `fmap` rp)
+fuse p           (Lift rq)   k = Lift ((\q -> fuse p q k) `fmap` rq)
+fuse _           Stop        k = k
+fuse p           (Emit x q)  k = Emit x (fuse p q k)
+fuse (Receive p) q           k = Receive (\x -> fuse (p x) q k)
+fuse Stop        _           k = k
+-- TODO: incomplete
+fuse (Loop p)    (Loop q)    k = Loop (fuse p q k)
