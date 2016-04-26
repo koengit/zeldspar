@@ -1,6 +1,6 @@
 module ZeldsparTest where
 
-import Prelude hiding (length, map, take, drop, zipWith, zip, unzip, (/=), (<))
+import Prelude hiding (div, concat, length, map, take, drop, zipWith, zip, unzip, splitAt, (/=), (<))
 
 import Zeldspar
 import Zeldspar.Parallel
@@ -80,6 +80,62 @@ fftPar n = fftCorePar n False |>>>| bitRev n
 --------------------------------------------------------------------------------
 
 -- Work in progress ideas / drafts
+
+fft8 = do
+    v <- receive
+    tw8 <- lift $ force $ twiddles 8
+    let evens = permute $ \_ i -> i .<<. 1
+        tw4 = evens tw8
+        tw2 = evens tw4
+        stage0 = chunk 1 (butterfly tw8)
+        stage1 = chunk 2 (butterfly tw4)
+        stage2 = chunk 4 (butterfly tw2)
+    stage0 >>> store >>> stage1 >>> store >>> stage2 >>> store >>> bitRev 8
+
+-- | Twiddle factors for an `n`-point FFT.
+twiddles :: Length -> Vector (Data (Complex Double))
+twiddles n = Indexed (value n .>>. 1)
+                     (\i -> polar 1 $ -π * 2 * i2n i / (i2n $ value n))
+
+-- | A variable-width butterfly using the given twiddle factors.
+butterfly :: Vector (Data (Complex Double))
+          -> Vector (Data (Complex Double))
+          -> Run (Vector (Data (Complex Double)))
+butterfly twiddles v = do
+    let half = length v .>>. 1
+        (lower, upper) = splitAt half v
+    (left, right) <- force $ unzip $ zipWith dft2 twiddles $ zip lower upper
+    return $ left +++ right
+
+-- | 2-point Decimation-In-Frequency DFT
+dft2 :: Num a => a -> (a, a) -> (a, a)
+dft2 twiddle (a, b) = (a + b, twiddle * (a - b))
+
+-- | Processing a vector in chunks.
+chunk :: Length
+      -> (Vector (Data (Complex Double))
+          -> Run (Vector (Data (Complex Double))))
+      -> Zun (Vector (Data (Complex Double))) (Vector (Data (Complex Double))) ()
+chunk chunks p = do
+    v <- receive
+    let len = length v `div` (value chunks)
+    vs <- forM [0..chunks - 1] $ \c -> do
+        let dropped = drop (value c * len) v
+            items   = take len dropped
+        lift $ p items
+    emit $ concat vs
+
+-- | Concatenation of multiple vectors (at least one).
+concat :: Syntax a => [Vector a] -> Vector a
+concat = foldl1 (+++)
+
+-- | Vector concatenation.
+(+++) :: Syntax a => Vector a -> Vector a -> Vector a
+a +++ b = Indexed (aLen + bLen) $ \i -> (i < aLen) ? (a ! i) $ (b ! (i - aLen))
+  where
+    aLen = length a
+    bLen = length b
+
 {-
 halve :: Type a => Zun (Vector (Data a)) (Vector (Data a)) ()
 halve = do
@@ -93,82 +149,6 @@ unhalve = do
     v1 <- receive
     v2 <- receive
     emit $ v1 +++ v2
-
-(+++) :: Syntax a => Vector a -> Vector a -> Vector a
-a +++ b = Indexed (aLen + bLen) $ \i -> (i < aLen) ? (a ! i) $ (b ! (i - aLen))
-  where
-    aLen = length a
-    bLen = length b
-
-
-butterfly :: Vector (Data (Complex Double))
-          -> Zun (Vector (Data (Complex Double))) (Vector (Data (Complex Double))) ()
-butterfly twiddles = cross
-  where
-    cross = do
-      lower <- receive
-      upper <- receive
-      (left, right) <- lift $ force $ unzip $ zipWith dft2 twiddles $ zip lower upper
-      emit right
-      emit left
-
--- | DFT2 for Decimation-In-Frequency
-dft2 :: Num a => a -> (a, a) -> (a, a)
-dft2 twiddle (a, b) = (twiddle * (a - b), a + b)
-
-chunk :: Length
-      -> Length
-      -> Zun (Vector (Data (Complex Double))) (Vector (Data (Complex Double))) ()
-      -> Zun (Vector (Data (Complex Double))) (Vector (Data (Complex Double))) ()
-chunk ch len p = p do
-    v <- receive
-    forM_ [0..ch - 1] $ \c -> do
-        let skipped = drop (value $ c * len) v
-            items   = take (value len) skipped
-        emit items >>> p
--}
-{-
-fft :: Length
-    -> Zun (Vector (Data (Complex Double))) (Vector (Data (Complex Double))) ()
-fft _ = do
-    -- chnk (1 .<<. s) (len .>>. s) (butterfly dft2 (ixmap (.<<. s) ws))
-    -- s = 0,1,2
-    v <- receive
-    tw8 <- lift $ force $ twiddles 8
-    let tw4 = permute (\_ i -> i * 2) tw8
-        tw2 = permute (\_ i -> i * 2) tw4
-        st0 = chunk 1 8 (butterfly tw8)
-        st1 = chunk 2 4 (butterfly tw4)
-        st2 = chunk 4 2 (butterfly tw2)
-    st0 >>> st1 >>> st2
--}
-{-
-fft ws vs = forLoop (ilog2 len) vs stage
-  where
-    len = length vs
-    stage s = withLen len
-            $ toPull
-            . store
-            . chnk (1 .<<. s) (len .>>. s) (butterfly dft2 (ixmap (.<<. s) ws))
--}
-{-
-fft4 :: ParZun (Vector (Data (Complex Double))) (Vector (Data (Complex Double))) ()
-fft4 = do
-    tw4 <- lift $ force $ twiddles 4
-    let tw2 = permute (\_ i -> i * 2) tw4
-        st0 = butterfly tw4
-        st1 = (halve >>> (butterfly tw2 >> butterfly tw2) >>> unhalve)
-    st0 |>>>| st1
-
-tt :: Length -> Run ()
-tt n = do
-    let n2 = n `Prelude.div` 2
-    tw <- twiddles n2
-    for (0, 1, Excl $ value n2) $ \i -> do
-        let ti = tw ! i
-            re = realPart ti
-            im = imagPart ti
-        printf "twiddle %d: %f %f\n" i re im
 
 -- | Two-point DFT butterfly for Decimation-In-Frequency
 dft2 :: Data (Complex Double)
@@ -184,13 +164,6 @@ dft2 twiddle = do
         (realPart a) (imagPart a)
         (realPart b) (imagPart b)
     emit v'
--}
-{-
--- | Twiddle factors for an `n`-point FFT
-twiddles :: Length -> Vector (Data (Complex Double))
-twiddles n = Indexed
-    (value n .>>. 1)
-    (\i -> polar 1 $ -π * i2n i / (i2n $ value n))
 -}
 
 --------------------------------------------------------------------------------
