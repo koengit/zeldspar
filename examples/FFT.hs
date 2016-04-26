@@ -43,33 +43,25 @@ bitRevPar n = foldl1 (|>>>|) [ liftP $ riffle $ value k | k <- [1..n'] ]
 -- "Push-style" FFT
 --------------------------------------------------------------------------------
 
-fft :: Length
-    -> Zun Samples Samples ()
+fft :: Length -> Zun Samples Samples ()
 fft n = fftCore n False >>> store >>> bitRev n
 
-fftPar :: Length
-       -> ParZun Samples Samples ()
+fftPar :: Length -> ParZun Samples Samples ()
 fftPar n = fftCorePar n False |>>>| bitRev n
 
 -- | Performs all 'ilog2 n' FFT/IFFT stages on a sample vector.
-fftCore :: Length
-        -> Bool  -- ^ Inverse?
-        -> Zun Samples Samples ()
+fftCore :: Length -> Bool -> Zun Samples Samples ()
 fftCore n inv = foldl1 (>>>) [ step inv $ value k | k <- Prelude.reverse [0..n'] ]
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
 
-fftCorePar :: Length
-        -> Bool  -- ^ Inverse?
-        -> ParZun Samples Samples ()
+fftCorePar :: Length -> Bool -> ParZun Samples Samples ()
 fftCorePar n inv = foldl1 (|>>>|) [ liftP $ step inv $ value k | k <- Prelude.reverse [0..n'] ]
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
 
 -- | Performs the 'k'th FFT/IFFT stage on a sample vector.
-step :: Bool
-     -> Data Length
-     -> Zun Samples Samples ()
+step :: Bool -> Data Length -> Zun Samples Samples ()
 step inv k = do
     v <- receive
     let ixf i = testBit i k ? (twid * (b - a)) $ (a + b)
@@ -89,6 +81,7 @@ testBit a i = a .&. (1 .<<. i2n i) /= 0
 -- "Pull-style" FFT
 --------------------------------------------------------------------------------
 
+fft' :: Length -> Zun Samples Samples ()
 fft' n = (foldl1 (>>>) [ mkStage s | s <- [0..n'] ]) >>> bitRev 8
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
@@ -97,6 +90,7 @@ fft' n = (foldl1 (>>>) [ mkStage s | s <- [0..n'] ]) >>> bitRev 8
         let tw = permute (\_ i -> i .<<. (i2n $ value s)) (twiddles 8)
         in  chunk (2 ^ s) (butterfly tw) >>> store
 
+fftPar' :: Length -> ParZun Samples Samples ()
 fftPar' n = (foldl1 (|>>>|) [ liftP $ mkStage s | s <- [0..n'] ]) |>>>| bitRev 8
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
@@ -111,9 +105,7 @@ twiddles n = Indexed (value n .>>. 1)
                      (\i -> polar 1 $ -π * 2 * i2n i / (i2n $ value n))
 
 -- | A variable-width butterfly using the given twiddle factors.
-butterfly :: Twiddles
-          -> Samples
-          -> Run Samples
+butterfly :: Twiddles -> Samples -> Run Samples
 butterfly twiddles samples = do
     let half = length samples .>>. 1
         (lower, upper) = splitAt half samples
@@ -125,9 +117,7 @@ dft2 :: Num a => a -> (a, a) -> (a, a)
 dft2 twiddle (a, b) = (a + b, twiddle * (a - b))
 
 -- | Processing a vector in chunks.
-chunk :: Length
-      -> (Samples -> Run Samples)
-      -> Zun Samples Samples ()
+chunk :: Length -> (Samples -> Run Samples) -> Zun Samples Samples ()
 chunk chunks p = do
     v <- receive
     let len = length v `div` (value chunks)
@@ -152,8 +142,7 @@ a +++ b = Indexed (aLen + bLen) $ \i -> (i < aLen) ? (a ! i) $ (b ! (i - aLen))
 -- Testing utilities
 --------------------------------------------------------------------------------
 
-test :: Zun (Vector (Data (Complex Double))) (Vector (Data (Complex Double))) ()
-     -> String -> Run ()
+test :: Zun Samples Samples () -> String -> Run ()
 test p inputFile = do
     translate
         p
@@ -177,8 +166,7 @@ test p inputFile = do
 
 --------------------------------------------------------------------------------
 
-testPar :: ParZun (Vector (Data (Complex Double))) (Vector (Data (Complex Double))) ()
-     -> String -> Run ()
+testPar :: ParZun Samples Samples () -> String -> Run ()
 testPar p inputFile = do
     translatePar
         p
