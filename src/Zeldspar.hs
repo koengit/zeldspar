@@ -1,8 +1,16 @@
 -- | An implementation of Ziria that uses Feldspar to represent computations
-module Zeldspar where
+module Zeldspar
+  ( module F
+  , module Z
+  , Zun
+  , translate
+  , store
+  ) where
 
-import Feldspar.Run
-import Ziria
+import Feldspar as F
+import Feldspar.Run as F
+import Feldspar.Vector as F
+import Ziria as Z
 
 
 --------------------------------------------------------------------------------
@@ -11,20 +19,24 @@ import Ziria
 
 type Zun inp out = Z inp out Run
 
-translate :: forall inp out a. Zun inp out ()
-          -> (Run inp)        -- ^ Source
-          -> (out -> Run ())  -- ^ Sink
-          -> Run ()
-translate (Z p) src snk = trans (p (\_ -> Stop))
+translate :: forall inp out m a. MonadComp m
+          => Z inp out m a
+          -> (m inp)        -- ^ Source
+          -> (out -> m ())  -- ^ Sink
+          -> m a
+translate (Z p) src snk = trans (p Return)
   where
-    trans :: Action inp out Run -> Run ()
-    trans (Lift rp)     = rp >>= \a -> trans a
+    trans :: forall a. Action inp out m a -> m a
+    trans (Lift m p)    = m >>= \a -> trans (p a)
     trans (Emit x p)    = snk x >> trans p
     trans (Receive p)   = src >>= trans . p
-    trans Stop          = return ()
-    trans (Loop p)      = while (return true) (void $ trans p)
-    trans (Times n p k) = for (0, 1, Excl $ value n) (const $ void $ trans p)
-                       >> trans k
+    trans (Return x)    = return x
+    trans (Loop s0 p)   = do st <- initStore s0
+                             while (return true) $
+                               do s <- readStore st
+                                  s' <- trans (p s)
+                                  writeStore st s'
+                             return (error "does not terminate")
 
 
 --------------------------------------------------------------------------------

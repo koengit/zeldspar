@@ -27,8 +27,6 @@ library
 
   default-extensions:
     GADTs
-    KindSignatures
-    MultiParamTypeClasses
     RankNTypes
     ScopedTypeVariables
 
