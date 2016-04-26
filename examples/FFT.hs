@@ -211,3 +211,15 @@ runLinked p = runCompiled' opts p
          { externalFlagsPost = ["-lpthread", "-lm"]
          , externalFlagsPre  = [ "-I../imperative-edsl/include"
                                , "../imperative-edsl/csrc/chan.c" ] }
+
+{- expected results, for all a/b/c test file variants:
+
+runLinked $ test (fft  8) "examples/FFT_in8a.txt" == "examples/FFT_out8a.txt"
+runLinked $ test (fft' 8) "examples/FFT_in8a.txt" == "examples/FFT_out8a.txt"
+
+runLinked $ testPar (fftPar  8) "examples/FFT_in8a.txt" == "examples/FFT_out8a.txt"
+runLinked $ testPar (fftPar' 8) "examples/FFT_in8a.txt" == "examples/FFT_out8a.txt"
+
+where '==' means that the files are the same, apart from numerical errors.
+
+-}
