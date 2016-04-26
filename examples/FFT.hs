@@ -105,31 +105,13 @@ twiddles n = Indexed (value n .>>. 1)
                      (\i -> polar 1 $ -π * 2 * i2n i / (i2n $ value n))
 
 -- | A variable-width butterfly using the given twiddle factors.
-butterfly :: Twiddles -> Samples -> Run Samples
-butterfly twiddles samples = do
+butterfly :: Twiddles -> Zun Samples Samples ()
+butterfly twiddles = do
+    samples <- receive
     let half = length samples .>>. 1
         (lower, upper) = splitAt half samples
-    (left, right) <- force $ unzip $ zipWith dft2 twiddles $ zip lower upper
-    return $ left +++ right
-
--- | 2-point Decimation-In-Frequency DFT
-dft2 :: Num a => a -> (a, a) -> (a, a)
-dft2 twiddle (a, b) = (a + b, twiddle * (a - b))
-
--- | Processing a vector in chunks.
-chunk :: Length -> (Samples -> Run Samples) -> Zun Samples Samples ()
-chunk chunks p = do
-    v <- receive
-    let len = length v `div` (value chunks)
-    vs <- forM [0..chunks - 1] $ \c -> do
-        let dropped = drop (value c * len) v
-            items   = take len dropped
-        lift $ p items
-    emit $ concat vs
-
--- | Concatenation of multiple vectors (at least one).
-concat :: Syntax a => [Vector a] -> Vector a
-concat = foldl1 (+++)
+        (left, right) = unzip $ zipWith dft2 twiddles $ zip lower upper
+    emit $ left +++ right
 
 -- | Vector concatenation.
 (+++) :: Syntax a => Vector a -> Vector a -> Vector a
@@ -137,6 +119,28 @@ a +++ b = Indexed (aLen + bLen) $ \i -> (i < aLen) ? (a ! i) $ (b ! (i - aLen))
   where
     aLen = length a
     bLen = length b
+
+-- | 2-point Decimation-In-Frequency DFT
+dft2 :: Num a => a -> (a, a) -> (a, a)
+dft2 twiddle (a, b) = (a + b, twiddle * (a - b))
+
+chunk :: Length -> Zun Samples Samples () -> Zun Samples Samples ()
+chunk chunks p = do
+    v <- receive
+    let len = length v
+    a :: Arr (Complex Double) <- lift $ newArr len
+    let chunkSize = len `div` (value chunks)
+        emits = forM_ [0..chunks - 1] $ \c -> do
+            let dropped = drop (value c * chunkSize) v
+                items   = take chunkSize dropped
+            emit items
+        receives = forM_ [0..chunks - 1] $ \c -> do
+            items <- receive
+            lift $ for (0, 1, Excl chunkSize) $ \i -> do
+                setArr (value c * chunkSize + i) (items ! i) a
+    emits >>> replicateM_ (fromIntegral chunks) p >>> receives
+    ia <- lift $ unsafeFreezeArr a
+    emit $ toPull $ Manifest len ia
 
 --------------------------------------------------------------------------------
 -- Testing utilities
