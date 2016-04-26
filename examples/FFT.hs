@@ -39,8 +39,9 @@ bitRevPar n = foldl1 (|>>>|) [ liftP $ riffle $ value k | k <- [1..n'] ]
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
 
+
 --------------------------------------------------------------------------------
--- "Push-style" FFT
+-- "Pull-style" FFT
 --------------------------------------------------------------------------------
 
 fft :: Length -> Zun Samples Samples ()
@@ -51,12 +52,14 @@ fftPar n = fftCorePar n False |>>>| bitRev n
 
 -- | Performs all 'ilog2 n' FFT/IFFT stages on a sample vector.
 fftCore :: Length -> Bool -> Zun Samples Samples ()
-fftCore n inv = foldl1 (>>>) [ step inv $ value k | k <- Prelude.reverse [0..n'] ]
+fftCore n inv = foldl1 (>>>) [ step inv $ value k
+                             | k <- Prelude.reverse [0..n'] ]
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
 
 fftCorePar :: Length -> Bool -> ParZun Samples Samples ()
-fftCorePar n inv = foldl1 (|>>>|) [ liftP $ step inv $ value k | k <- Prelude.reverse [0..n'] ]
+fftCorePar n inv = foldl1 (|>>>|) [ liftP $ step inv $ value k
+                                  | k <- Prelude.reverse [0..n'] ]
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
 
@@ -77,41 +80,47 @@ step inv k = do
 testBit :: (Bits a, Num a, PrimType a) => Data a -> Data Index -> Data Bool
 testBit a i = a .&. (1 .<<. i2n i) /= 0
 
+
 --------------------------------------------------------------------------------
--- "Pull-style" FFT
+-- "Push-style" FFT
 --------------------------------------------------------------------------------
 
 fft' :: Length -> Zun Samples Samples ()
-fft' n = (foldl1 (>>>) [ mkStage s | s <- [0..n'] ]) >>> bitRev 8
+fft' n = (foldl1 (>>>) [ mkStage s | s <- [0..n'] ]) >>> bitRev n
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
     mkStage :: Length -> Zun Samples Samples ()
     mkStage s =
-        let tw = permute (\_ i -> i .<<. (i2n $ value s)) (twiddles 8)
+        let tw = permute (\_ i -> i .<<. (i2n $ value s)) (twiddles $ value n)
         in  chunk (2 ^ s) (butterfly tw) >>> store
 
 fftPar' :: Length -> ParZun Samples Samples ()
-fftPar' n = (foldl1 (|>>>|) [ liftP $ mkStage s | s <- [0..n'] ]) |>>>| bitRev 8
+fftPar' n = (foldl1 (|>>>|) [ liftP $ mkStage s | s <- [0..n'] ]) |>>>| bitRev n
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
     mkStage :: Length -> Zun Samples Samples ()
     mkStage s =
-        let tw = permute (\_ i -> i .<<. (i2n $ value s)) (twiddles 8)
+        let tw = permute (\_ i -> i .<<. (i2n $ value s)) (twiddles $ value n)
         in  chunk (2 ^ s) (butterfly tw)
 
 -- | Twiddle factors for an `n`-point FFT.
-twiddles :: Length -> Twiddles
-twiddles n = Indexed (value n .>>. 1)
-                     (\i -> polar 1 $ -π * 2 * i2n i / (i2n $ value n))
+twiddles :: Data Length -> Twiddles
+twiddles n = Indexed (n .>>. 1) (\i -> polar 1 $ -π * 2 * i2n i / (i2n $ n))
 
 -- | A variable-width butterfly using the given twiddle factors.
 butterfly :: Twiddles -> Zun Samples Samples ()
 butterfly twiddles = do
     samples <- receive
     let half = length samples .>>. 1
-        (lower, upper) = splitAt half samples
-        (left, right) = unzip $ zipWith dft2 twiddles $ zip lower upper
+        (left, right) = unzip
+                      $ zipWith dft2 twiddles
+                      $ uncurry zip
+                      $ splitAt half samples
     emit $ left +++ right
+
+-- | 2-point Decimation-In-Frequency DFT.
+dft2 :: Num a => a -> (a, a) -> (a, a)
+dft2 twiddle (a, b) = (a + b, twiddle * (a - b))
 
 -- | Vector concatenation.
 (+++) :: Syntax a => Vector a -> Vector a -> Vector a
@@ -120,15 +129,14 @@ a +++ b = Indexed (aLen + bLen) $ \i -> (i < aLen) ? (a ! i) $ (b ! (i - aLen))
     aLen = length a
     bLen = length b
 
--- | 2-point Decimation-In-Frequency DFT
-dft2 :: Num a => a -> (a, a) -> (a, a)
-dft2 twiddle (a, b) = (a + b, twiddle * (a - b))
-
-chunk :: Length -> Zun Samples Samples () -> Zun Samples Samples ()
+-- | Processing vectors in chunks.
+chunk :: Syntax a
+      => Length
+      -> Zun (Vector a) (Vector a) () -> Zun (Vector a) (Vector a) ()
 chunk chunks p = do
     v <- receive
     let len = length v
-    a :: Arr (Complex Double) <- lift $ newArr len
+    a <- lift $ newArr len
     let chunkSize = len `div` (value chunks)
         emits = forM_ [0..chunks - 1] $ \c -> do
             let dropped = drop (value c * chunkSize) v
@@ -141,6 +149,7 @@ chunk chunks p = do
     emits >>> replicateM_ (fromIntegral chunks) p >>> receives
     ia <- lift $ unsafeFreezeArr a
     emit $ toPull $ Manifest len ia
+
 
 --------------------------------------------------------------------------------
 -- Testing utilities
