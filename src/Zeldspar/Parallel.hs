@@ -84,7 +84,5 @@ foldParZ :: (Monad m, Transferable inp, Transferable out)
          -> m (c out)
 foldParZ chs acc (LiftP p)     f = f chs acc p
 foldParZ chs acc (ConnP s a b) f =
-    let chs' = fromIntegral $ case s of
-            Just s' -> s'
-            _       -> fromIntegral chs
+    let chs' = maybe chs fromIntegral s
     in  foldParZ chs' acc a f >>= \acc' -> foldParZ chs acc' b f
