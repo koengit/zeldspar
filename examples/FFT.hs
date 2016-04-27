@@ -48,7 +48,7 @@ fft :: Length -> Zun Samples Samples ()
 fft n = fftCore n False >>> store >>> bitRev n
 
 fftPar :: Length -> ParZun Samples Samples ()
-fftPar n = fftCorePar n False |>>>| bitRev n
+fftPar n = fftCorePar n False |>>>| bitRevPar n
 
 -- | Performs all 'ilog2 n' FFT/IFFT stages on a sample vector.
 fftCore :: Length -> Bool -> Zun Samples Samples ()
@@ -181,7 +181,7 @@ test p inputFile = do
 
 testPar :: ParZun Samples Samples () -> String -> Run ()
 testPar p inputFile = do
-    translatePar
+    translatePar 1024
         p
         (do h <- fopen inputFile ReadMode
             n :: Data Length <- fget h

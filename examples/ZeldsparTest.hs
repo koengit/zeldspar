@@ -83,6 +83,10 @@ storedVec = vecMake >>> vecInc >>> store >>> vecRev >>> vecTail >>> vecSum
 
 parVec = (vecMake >>> vecInc) |>>>| (vecRev >>> (vecTail >>> vecSum))
 
+parVecSized = (vecMake >>> vecInc) |>> 64 >>| (vecRev >>> (vecTail >>> vecSum))
+
+parVecSized' = vecMake |>> 17 >>| vecTail |>> 16 >>| vecSum |>> 2 >>| prog1
+
 ---
 
 prepare :: Zun (Data Int32) (Data Int32) () -> Run ()
@@ -94,7 +98,7 @@ prepare p = translate p src snk
 ---
 
 preparePar :: ParZun (Data Int32) (Data Int32) () -> Run ()
-preparePar p = translatePar p src snk
+preparePar p = translatePar 1024 p src snk
   where
     src = (\x -> (x, true)) <$> fget stdin
     snk = \x -> printf "%d\n" x >> return true

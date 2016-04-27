@@ -11,7 +11,8 @@ import Ziria
 
 data ParZ inp out m a
   = LiftP (Z inp out m ())
-  | forall mid. Transferable mid => (ParZ inp mid m ()) :|>>>| (ParZ mid out m ())
+  | forall chs mid. (Integral chs, Transferable mid)
+    => ConnP (Maybe chs) (ParZ inp mid m ()) (ParZ mid out m ())
 
 
 --------------------------------------------------------------------------------
@@ -30,4 +31,20 @@ instance Parallel Z where
 
 (|>>>|) :: (Parallel a, Parallel b, Monad m, Transferable mid)
         => a inp mid m () -> b mid out m () -> ParZ inp out m ()
-l |>>>| r = liftP l :|>>>| liftP r
+l |>>>| r = ConnP Nothing (liftP l) (liftP r)
+
+(|>>) :: (Parallel a, Monad m, Transferable mid)
+      => a inp mid m ()
+      -> Int
+      -> (ParZ mid out m () -> ParZ inp out m ())
+l |>> len = ConnP (Just len) (liftP l)
+
+(>>|) :: (Parallel a, Monad m, Transferable mid)
+      => (ParZ mid out m () -> ParZ inp out m ())
+      -> a mid out m ()
+      -> ParZ inp out m ()
+connP >>| r = connP (liftP r)
+
+infixl 1 |>>>|
+infixl 1 |>>
+infixl 1 >>|
