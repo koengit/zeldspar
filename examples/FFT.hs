@@ -35,7 +35,8 @@ bitRev n = foldl1 (>>>) [ riffle $ value k | k <- [1..n'] ]
 
 -- | Parallel bit reversal of a vector with length 'n'.
 bitRevPar :: PrimType a => Length -> ParZun (Vector (Data a)) (Vector (Data a)) ()
-bitRevPar n = foldl1 (|>>>|) [ liftP $ riffle $ value k | k <- [1..n'] ]
+bitRevPar n = foldl1 (\a b -> a |>>10`ofLength`value n>>| b)
+            [ liftP $ riffle $ value k | k <- [1..n'] ]
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
 
@@ -48,7 +49,7 @@ fft :: Length -> Zun Samples Samples ()
 fft n = fftCore n False >>> store >>> bitRev n
 
 fftPar :: Length -> ParZun Samples Samples ()
-fftPar n = fftCorePar n False |>>>| bitRevPar n
+fftPar n = fftCorePar n False |>>10`ofLength`value n>>| bitRevPar n
 
 -- | Performs all 'ilog2 n' FFT/IFFT stages on a sample vector.
 fftCore :: Length -> Bool -> Zun Samples Samples ()
@@ -58,8 +59,8 @@ fftCore n inv = foldl1 (>>>) [ step inv $ value k
     n' = floor (logBase 2 $ fromIntegral n) - 1
 
 fftCorePar :: Length -> Bool -> ParZun Samples Samples ()
-fftCorePar n inv = foldl1 (|>>>|) [ liftP $ step inv $ value k
-                                  | k <- Prelude.reverse [0..n'] ]
+fftCorePar n inv = foldl1 (\a b -> a |>>10`ofLength`value n>>| b)
+                 [ liftP $ step inv $ value k | k <- Prelude.reverse [0..n'] ]
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
 
@@ -95,7 +96,8 @@ fft' n = (foldl1 (>>>) [ mkStage s | s <- [0..n'] ]) >>> bitRev n
         in  chunk (2 ^ s) (butterfly tw) >>> store
 
 fftPar' :: Length -> ParZun Samples Samples ()
-fftPar' n = (foldl1 (|>>>|) [ liftP $ mkStage s | s <- [0..n'] ]) |>>>| bitRev n
+fftPar' n = (foldl1 (\a b -> a |>>10`ofLength`value n>>| b)
+          [ liftP $ mkStage s | s <- [0..n'] ]) |>>10`ofLength`value n>>| bitRev n
   where
     n' = floor (logBase 2 $ fromIntegral n) - 1
     mkStage :: Length -> Zun Samples Samples ()
@@ -181,18 +183,19 @@ test p inputFile = do
 
 testPar :: ParZun Samples Samples () -> String -> Run ()
 testPar p inputFile = do
-    translatePar 1024
+    h <- fopen inputFile ReadMode
+    n :: Data Length <- fget h
+    let chanSize = 10 `ofLength` n
+    input :: Arr (Complex Double) <- newArr n
+    for (0, 1, Excl n) $ \i -> do
+        re :: Data Double <- fget h
+        im :: Data Double <- fget h
+        setArr i (complex re im) input
+    inp <- unsafeFreezeVec n input
+    translatePar
         p
-        (do h <- fopen inputFile ReadMode
-            n :: Data Length <- fget h
-            input :: Arr (Complex Double) <- newArr n
-            for (0, 1, Excl n) $ \i -> do
-                re :: Data Double <- fget h
-                im :: Data Double <- fget h
-                setArr i (complex re im) input
-            fclose h
-            inp <- unsafeFreezeVec n input
-            return (inp, true))
+        (return (inp, true))
+        chanSize
         (\output -> do
             let n = length output
             printf "%d\n" n
@@ -202,6 +205,8 @@ testPar p inputFile = do
                     im = imagPart xi
                 printf "%f %f\n" re im
             return true)
+        chanSize
+    fclose h
 
 --------------------------------------------------------------------------------
 

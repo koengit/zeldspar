@@ -11,8 +11,8 @@ import Ziria
 
 data ParZ inp out m a
   = LiftP (Z inp out m ())
-  | forall chs mid. (Integral chs, Transferable mid)
-    => ConnP (Maybe chs) (ParZ inp mid m ()) (ParZ mid out m ())
+  | forall mid. (Transferable mid)
+    => ConnP (SizeSpec mid) (ParZ inp mid m ()) (ParZ mid out m ())
 
 
 --------------------------------------------------------------------------------
@@ -29,15 +29,15 @@ instance Parallel ParZ where
 instance Parallel Z where
   liftP = LiftP
 
-(|>>>|) :: (Parallel a, Parallel b, Monad m, Transferable mid)
-        => a inp mid m () -> b mid out m () -> ParZ inp out m ()
-l |>>>| r = ConnP Nothing (liftP l) (liftP r)
-
+-- | Parallel composition of Ziria programs. It should be used in conjunction
+--   with (>>|) to create a mixfix operator with a channel size specifier in the
+--   middle, for example 'a |>>n>>| b' composes 'a' and 'b' through a channel of
+--   size 'n'.
 (|>>) :: (Parallel a, Monad m, Transferable mid)
       => a inp mid m ()
-      -> Int
+      -> SizeSpec mid
       -> (ParZ mid out m () -> ParZ inp out m ())
-l |>> len = ConnP (Just len) (liftP l)
+l |>> len = ConnP len (liftP l)
 
 (>>|) :: (Parallel a, Monad m, Transferable mid)
       => (ParZ mid out m () -> ParZ inp out m ())
@@ -45,6 +45,5 @@ l |>> len = ConnP (Just len) (liftP l)
       -> ParZ inp out m ()
 connP >>| r = connP (liftP r)
 
-infixl 1 |>>>|
 infixl 1 |>>
 infixl 1 >>|
