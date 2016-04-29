@@ -26,15 +26,16 @@ type ParZun inp out = ParZ inp out Run
 --------------------------------------------------------------------------------
 
 translatePar :: forall inp out. (Transferable inp, Transferable out)
-             => Length                    -- ^ Default channel size
-             -> ParZun inp out ()
+             => ParZun inp out ()
              -> (Run (inp, Data Bool))    -- ^ Source
+             -> SizeSpec inp              -- ^ Source channel size
              -> (out -> Run (Data Bool))  -- ^ Sink
+             -> SizeSpec out              -- ^ Sink channel size
              -> Run ()
-translatePar dchs ps inp out = do
-    i <- newChan (value dchs)
-    o <- foldParZ dchs i ps $ \chs i p -> do
-      o <- newChan (value chs)
+translatePar  ps inp ichs out ochs = do
+    i <- newCloseableChan ichs
+    o <- foldParZ ochs i ps $ \chs i p -> do
+      o <- newCloseableChan chs
       forkWithId $ \t -> void $ do
         translate (p >> return ()) (readC t i o) (writeC t i o)
         closeChan i
@@ -76,13 +77,11 @@ translatePar dchs ps inp out = do
 
 -- | Left fold over a 'ParZ'
 foldParZ :: (Monad m, Transferable inp, Transferable out)
-         => Length
+         => SizeSpec out
          -> c inp
          -> ParZ inp out m a
          -> (forall inp out a. (Transferable inp, Transferable out)
-             => Length -> c inp -> Z inp out m a -> m (c out))
+             => SizeSpec out -> c inp -> Z inp out m a -> m (c out))
          -> m (c out)
 foldParZ chs acc (LiftP p)     f = f chs acc p
-foldParZ chs acc (ConnP s a b) f =
-    let chs' = maybe chs fromIntegral s
-    in  foldParZ chs' acc a f >>= \acc' -> foldParZ chs acc' b f
+foldParZ chs acc (ConnP s a b) f = foldParZ s acc a f >>= \acc' -> foldParZ chs acc' b f
