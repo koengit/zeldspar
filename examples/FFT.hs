@@ -25,7 +25,7 @@ rotBit k i = lefts .|. rights
 
 -- | Permute the vector by applying 'rotBit k' on its indices.
 riffle :: Data Index -> Zun (Vector (Data a)) (Vector (Data a)) ()
-riffle k = receive >>= emit . permute (const $ rotBit k)
+riffle k = loop $ receive >>= emit . permute (const $ rotBit k)
 
 -- | Bit reversal of a vector with length 'n'.
 bitRev :: PrimType a => Length -> Zun (Vector (Data a)) (Vector (Data a)) ()
@@ -46,7 +46,7 @@ bitRevPar n = foldl1 (\a b -> a |>>10`ofLength`value n>>| b)
 --------------------------------------------------------------------------------
 
 fft :: Length -> Zun Samples Samples ()
-fft n = fftCore n False >>> store >>> bitRev n
+fft n = fftCore n False >>> loop store >>> bitRev n
 
 fftPar :: Length -> ParZun Samples Samples ()
 fftPar n = fftCorePar n False |>>10`ofLength`value n>>| bitRevPar n
@@ -66,7 +66,7 @@ fftCorePar n inv = foldl1 (\a b -> a |>>10`ofLength`value n>>| b)
 
 -- | Performs the 'k'th FFT/IFFT stage on a sample vector.
 step :: Bool -> Data Length -> Zun Samples Samples ()
-step inv k = do
+step inv k = loop $ do
     v <- receive
     let ixf i = testBit i k ? (twid * (b - a)) $ (a + b)
           where
