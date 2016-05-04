@@ -12,7 +12,9 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 extra-source-files:
-  Examples.hs
+    README.md
+    examples/*.hs
+    tests/*.hs
 
 library
   exposed-modules:
