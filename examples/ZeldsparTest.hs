@@ -22,7 +22,7 @@ fused :: Zun (Data Int32) (Data Int32) ()
 fused = prog1 >>> prog2
 
 stored :: Zun (Data Int32) (Data Int32) ()
-stored = prog1 >>> store >>> prog2
+stored = prog1 >>> loop store >>> prog2
 
 ---
 
@@ -79,7 +79,7 @@ vecSum = loop $ do
 
 fusedVec = vecMake >>> vecInc >>> vecRev >>> vecTail >>> vecSum
 
-storedVec = vecMake >>> vecInc >>> store >>> vecRev >>> vecTail >>> vecSum
+storedVec = vecMake >>> vecInc >>> loop store >>> vecRev >>> vecTail >>> vecSum
 
 parVec = (vecMake >>> vecInc) |>>10`ofLength`30>>| (vecRev >>> (vecTail >>> vecSum))
 
