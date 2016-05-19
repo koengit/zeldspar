@@ -95,8 +95,8 @@ liftOut' :: (out -> m out')
          -> Action inp out' m b
 liftOut' f (Lift m p)  k = Lift m (\x -> liftOut' f (p x) k)
 liftOut' f (Emit x p)  k = Lift (f x) (\x' -> Emit x' (liftOut' f p k))
-liftOut' f (Return x)  k = k x
 liftOut' f (Receive p) k = Receive (\x -> liftOut' f (p x) k)
+liftOut' f (Return x)  k = k x
 liftOut' f (Loop x p)  k = Loop x (\x -> liftOut' f (p x) Return)
 
 
