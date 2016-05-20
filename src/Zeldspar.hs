@@ -8,9 +8,9 @@ module Zeldspar
   , store
   ) where
 
-import Feldspar as F
-import Feldspar.Run as F
-import Feldspar.Vector as F
+import Feldspar as F hiding (foldM)
+import Feldspar.Data.Vector as F
+import Feldspar.Run as F hiding (foldM)
 import Ziria as Z
 
 
