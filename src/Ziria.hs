@@ -69,6 +69,38 @@ loop (Z z) = Z (\_ -> Loop () (\_ -> z (\_ -> Return ())))
 
 
 --------------------------------------------------------------------------------
+-- * Lifting input and output
+--------------------------------------------------------------------------------
+
+liftIn :: (inp' -> m inp) -> Z inp out m a -> Z inp' out m a
+liftIn f (Z p) = Z (\k -> (liftIn' f (p Return) k))
+
+liftIn' :: (inp' -> m inp)
+        -> Action inp out m a
+        -> (a -> Action inp' out m b)
+        -> Action inp' out m b
+liftIn' f (Lift m p)  k = Lift m (\x -> liftIn' f (p x) k)
+liftIn' f (Emit x p)  k = Emit x (liftIn' f p k)
+liftIn' f (Receive p) k = Receive (\x -> Lift (f x) (\x' -> liftIn' f (p x') k))
+liftIn' f (Return x)  k = k x
+liftIn' f (Loop x p)  _ = Loop x (\x -> liftIn' f (p x) Return)
+
+
+liftOut :: (out -> m out') -> Z inp out m a -> Z inp out' m a
+liftOut f (Z p) = Z (\k -> (liftOut' f (p Return) k))
+
+liftOut' :: (out -> m out')
+         -> Action inp out m a
+         -> (a -> Action inp out' m b)
+         -> Action inp out' m b
+liftOut' f (Lift m p)  k = Lift m (\x -> liftOut' f (p x) k)
+liftOut' f (Emit x p)  k = Lift (f x) (\x' -> Emit x' (liftOut' f p k))
+liftOut' f (Receive p) k = Receive (\x -> liftOut' f (p x) k)
+liftOut' f (Return x)  k = k x
+liftOut' f (Loop x p)  _ = Loop x (\x -> liftOut' f (p x) Return)
+
+
+--------------------------------------------------------------------------------
 -- * Pipelining
 --------------------------------------------------------------------------------
 

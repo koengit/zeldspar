@@ -22,7 +22,7 @@ fused :: Zun (Data Int32) (Data Int32) ()
 fused = prog1 >>> prog2
 
 stored :: Zun (Data Int32) (Data Int32) ()
-stored = prog1 >>> store >>> prog2
+stored = prog1 >>> loop store >>> prog2
 
 ---
 
@@ -51,35 +51,35 @@ infinite' = (emit 13 >> prog3) >>> prog4
 
 ---
 
-vecMake :: Zun (Data Int32) (Vector (Data Int32)) ()
+vecMake :: Zun (Data Int32) (DPull Int32) ()
 vecMake = loop $ do
     i <- receive
-    emit $ map (i2n) (0 ... i2n i)
+    emit $ fmap (i2n) (0 ... i2n i)
 
-vecInc :: (PrimType a, Num a) => Zun (Vector (Data a)) (Vector (Data a)) ()
+vecInc :: (PrimType a, Num a) => Zun (DPull a) (DPull a) ()
 vecInc = loop $ do
     v <- receive
-    emit (map (+1) v)
+    emit (fmap (+1) v)
 
-vecRev :: PrimType a => Zun (Vector (Data a)) (Vector (Data a)) ()
+vecRev :: PrimType a => Zun (DPull a) (DPull a) ()
 vecRev = loop $ do
     v <- receive
     emit (reverse v)
 
-vecTail :: Zun (Vector (Data Int32)) (Vector (Data Int32)) ()
+vecTail :: Zun (DPull Int32) (DPull Int32) ()
 vecTail = loop $ do
     v <- receive
     lift $ printf "Dropping: %d\n" (head v)
     emit (drop 1 v)
 
-vecSum :: Zun (Vector (Data Int32)) (Data Int32) ()
+vecSum :: Zun (DPull Int32) (Data Int32) ()
 vecSum = loop $ do
     v <- receive
     emit (sum v)
 
 fusedVec = vecMake >>> vecInc >>> vecRev >>> vecTail >>> vecSum
 
-storedVec = vecMake >>> vecInc >>> store >>> vecRev >>> vecTail >>> vecSum
+storedVec = vecMake >>> vecInc >>> loop store >>> vecRev >>> vecTail >>> vecSum
 
 parVec = (vecMake >>> vecInc) |>>10`ofLength`30>>| (vecRev >>> (vecTail >>> vecSum))
 

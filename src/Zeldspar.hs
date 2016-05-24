@@ -4,12 +4,13 @@ module Zeldspar
   , module Z
   , Zun
   , translate
+  , precompute
   , store
   ) where
 
-import Feldspar as F
-import Feldspar.Run as F
-import Feldspar.Vector as F
+import Feldspar as F hiding (foldM)
+import Feldspar.Data.Vector as F
+import Feldspar.Run as F hiding (foldM)
 import Ziria as Z
 
 
@@ -43,9 +44,13 @@ translate (Z p) src snk = trans (p Return)
 -- * Utilities
 --------------------------------------------------------------------------------
 
+precompute :: (MonadComp m, Storable a) => a -> m a
+precompute x = do
+  s <- initStore x
+  unsafeFreezeStore s
+
 store :: Storable a => Zun a a ()
 store = do
-    i <- receive
-    s <- lift $ initStore i
-    o <- lift $ unsafeFreezeStore s
-    emit o
+  i <- receive
+  o <- lift $ precompute i
+  emit o
