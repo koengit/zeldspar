@@ -49,7 +49,7 @@ precompute x = do
   s <- initStore x
   unsafeFreezeStore s
 
-store :: Storable a => Zun a a ()
+store :: MonadComp m => Storable a => Z a a m ()
 store = do
   i <- receive
   o <- lift $ precompute i
