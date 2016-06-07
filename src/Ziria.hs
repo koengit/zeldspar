@@ -1,6 +1,8 @@
 -- | A generic implementation of sequential Ziria programs
 module Ziria where
 
+import Control.Monad.Trans.Class
+
 import Feldspar
 
 
@@ -55,8 +57,8 @@ instance Monad m => Monad (Z inp out m) where
 -- * Front end
 --------------------------------------------------------------------------------
 
-lift :: Monad m => m a -> Z inp out m a
-lift m = Z (\k -> Lift m k)
+instance MonadTrans (Z inp out) where
+  lift m = Z (\k -> Lift m k)
 
 emit :: out -> Z inp out m ()
 emit x = Z (\k -> Emit x (k ()))

@@ -3,11 +3,13 @@ module Zeldspar
   ( module F
   , module Z
   , Zun
+  , lift
   , translate
   , precompute
   , store
   ) where
 
+import Control.Monad.Trans (lift)
 import Feldspar as F hiding (foldM)
 import Feldspar.Data.Vector as F
 import Feldspar.Run as F hiding (foldM)
