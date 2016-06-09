@@ -3,7 +3,7 @@ module Zeldspar.Parallel
   ( module F
   , module Z
   , ParZun
-  , translatePar
+  , runParZ
   ) where
 
 import Prelude hiding (break)
@@ -25,19 +25,19 @@ type ParZun inp out = ParZ inp out Run
 -- * Translation
 --------------------------------------------------------------------------------
 
-translatePar :: forall inp out. (Transferable inp, Transferable out)
-             => ParZun inp out ()
-             -> (Run (inp, Data Bool))    -- ^ Source
-             -> SizeSpec inp              -- ^ Source channel size
-             -> (out -> Run (Data Bool))  -- ^ Sink
-             -> SizeSpec out              -- ^ Sink channel size
-             -> Run ()
-translatePar  ps inp ichs out ochs = do
+runParZ :: forall inp out. (Transferable inp, Transferable out)
+         => ParZun inp out ()
+         -> (Run (inp, Data Bool))    -- ^ Source
+         -> SizeSpec inp              -- ^ Source channel size
+         -> (out -> Run (Data Bool))  -- ^ Sink
+         -> SizeSpec out              -- ^ Sink channel size
+         -> Run ()
+runParZ ps inp ichs out ochs = do
     i <- newCloseableChan ichs
     o <- foldParZ ochs i ps $ \chs i p -> do
       o <- newCloseableChan chs
       forkWithId $ \t -> void $ do
-        translate (p >> return ()) (readC t i o) (writeC t i o)
+        runZ (p >> return ()) (readC t i o) (writeC t i o)
         closeChan i
         closeChan o
       return o

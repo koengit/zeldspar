@@ -8,13 +8,13 @@ import Zeldspar.Parallel
 
 prog1 :: Zun (Data Int32) (Data Int32) ()
 prog1 = loop $ do
-    i <- receive
+    i <- take
     lift $ printf "prog1 received %d\n" i
     emit (i + 1)
 
 prog2 :: Zun (Data Int32) (Data Int32) ()
 prog2 = loop $ do
-    i <- receive
+    i <- take
     lift $ printf "prog2 received %d\n" i
     emit (i * 2)
 
@@ -28,17 +28,17 @@ stored = prog1 >>> loop store >>> prog2
 
 prog3 :: Zun (Data Int32) (Data Int32) ()
 prog3 = loop $ do
-    i <- receive
+    i <- take
     emit (i + 1)
     emit (i + 2)
 
 prog4 :: Zun (Data Int32) (Data Int32) ()
 prog4 = loop $ do
-    i <- receive
+    i <- take
     emit (i * 2)
-    i <- receive
+    i <- take
     emit (i * 3)
-    i <- receive
+    i <- take
     emit (i * 4)
 
 infinite :: Zun (Data Int32) (Data Int32) ()
@@ -53,28 +53,28 @@ infinite' = (emit 13 >> prog3) >>> prog4
 
 vecMake :: Zun (Data Int32) (DPull Int32) ()
 vecMake = loop $ do
-    i <- receive
+    i <- take
     emit $ fmap (i2n) (0 ... i2n i)
 
 vecInc :: (PrimType a, Num a) => Zun (DPull a) (DPull a) ()
 vecInc = loop $ do
-    v <- receive
+    v <- take
     emit (fmap (+1) v)
 
 vecRev :: PrimType a => Zun (DPull a) (DPull a) ()
 vecRev = loop $ do
-    v <- receive
+    v <- take
     emit (reverse v)
 
 vecTail :: Zun (DPull Int32) (DPull Int32) ()
 vecTail = loop $ do
-    v <- receive
+    v <- take
     lift $ printf "Dropping: %d\n" (head v)
     emit (drop 1 v)
 
 vecSum :: Zun (DPull Int32) (Data Int32) ()
 vecSum = loop $ do
-    v <- receive
+    v <- take
     emit (sum v)
 
 fusedVec = vecMake >>> vecInc >>> vecRev >>> vecTail >>> vecSum
@@ -88,7 +88,7 @@ parVec' n = vecMake |>>4`ofLength`n>>| vecTail |>>3`ofLength`n>>| vecSum |>>2>>|
 ---
 
 prepare :: Zun (Data Int32) (Data Int32) () -> Run ()
-prepare p = translate p src snk
+prepare p = runZ p src snk
   where
     src = fget stdin
     snk = printf "%d\n"
@@ -96,7 +96,7 @@ prepare p = translate p src snk
 ---
 
 preparePar :: ParZun (Data Int32) (Data Int32) () -> Run ()
-preparePar p = translatePar p src 10 snk 10
+preparePar p = runParZ p src 10 snk 10
   where
     src = (\x -> (x, true)) <$> fget stdin
     snk = \x -> printf "%d\n" x >> return true
