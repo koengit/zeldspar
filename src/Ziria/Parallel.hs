@@ -43,7 +43,7 @@ l |>> len = ConnP len (liftP l)
       => (ParZ mid out m () -> ParZ inp out m ())
       -> a mid out m ()
       -> ParZ inp out m ()
-connP >>| r = connP (liftP r)
+(>>|) = ($) . (. liftP)
 
 infixl 1 |>>
 infixl 1 >>|
