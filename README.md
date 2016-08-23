@@ -1,4 +1,4 @@
-# zeldspar
+# Zeldspar [![Build Status](https://travis-ci.org/kmate/zeldspar.svg?branch=master)](https://travis-ci.org/kmate/zeldspar)
 Ziria + Feldspar = sant
 
 ## Installation
