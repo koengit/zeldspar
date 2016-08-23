@@ -1,12 +1,12 @@
 name:                zeldspar
 version:             0.2
 synopsis:            Ziria + Feldspar
--- description:
+description:         see README.md
 license:             BSD3
 license-file:        LICENSE
--- author:
--- maintainer:
--- copyright:
+-- author:              Máté Karácsony
+maintainer:          k_mate@inf.elte.hu
+copyright:           Copyright (c) 2016, Máté Karácsony
 category:            Language
 build-type:          Simple
 cabal-version:       >=1.10
