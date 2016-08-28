@@ -12,5 +12,7 @@ Here is a suggested incantation:
     cabal sandbox init
     cabal sandbox add-source ../imperative-edsl
     cabal sandbox add-source ../raw-feldspar
-    cabal install --constraint="language-c-quote -full-haskell-antiquotes"
 
+When installing dependencies in a sandbox, you can get a faster experience and a smaller sandbox by passing a constraint for `language-c-quote`:
+
+    cabal install --only-dependencies --constraint="language-c-quote -full-haskell-antiquotes"
