@@ -101,9 +101,9 @@ preparePar p = runParZ p src 10 snk 10
     src = (\x -> (x, true)) <$> fget stdin
     snk = \x -> printf "%d\n" x >> return true
 
-runPar p = runCompiled' opts (preparePar p)
+runPar p = runCompiled' def opts (preparePar p)
   where
-    opts = defaultExtCompilerOpts
+    opts = def
          { externalFlagsPost = ["-lpthread"]
          , externalFlagsPre  = [ "-I../imperative-edsl/include"
                                , "../imperative-edsl/csrc/chan.c" ] }

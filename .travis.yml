@@ -1,0 +1,63 @@
+# Inspired by
+# https://github.com/hvr/multi-ghc-travis/blob/master/make_travis_yml_2.hs
+
+sudo: false
+language: c
+
+cache:
+  directories:
+    - $HOME/.cabal
+
+matrix:
+  include:
+    - env: CABALVER=1.24 GHCVER=7.10.3
+      addons: {apt: {sources: [hvr-ghc], packages: [cabal-install-1.24,ghc-7.10.3,happy-1.19.5,alex-3.1.7]}}
+    - env: CABALVER=1.24 GHCVER=8.0.1
+      addons: {apt: {sources: [hvr-ghc], packages: [cabal-install-1.24,ghc-8.0.1,happy-1.19.5,alex-3.1.7]}}
+    - env: CABALVER=head GHCVER=head
+      addons: {apt: {sources: [hvr-ghc], packages: [cabal-install-head,ghc-head,happy-1.19.5,alex-3.1.7]}}
+
+  allow_failures:
+    - env: CABALVER=head GHCVER=head
+
+before_install:
+  - env
+  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
+  - export PATH=/opt/alex/3.1.7/bin:/opt/happy/1.19.5/bin:$PATH
+
+install:
+  - cabal --version
+  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
+  - travis_retry cabal update -v
+  - git clone https://github.com/emilaxelsson/imperative-edsl
+  #- git clone https://github.com/markus-git/hardware-edsl
+  - git clone https://github.com/Feldspar/raw-feldspar
+  - git clone https://github.com/kmate/raw-feldspar-mcs
+  - echo "packages:"          >  cabal.project &&
+    echo "  ./"               >> cabal.project &&
+    echo "  imperative-edsl"  >> cabal.project &&
+    echo "  raw-feldspar"     >> cabal.project &&
+    echo "  raw-feldspar-mcs" >> cabal.project
+    #&& echo "  hardware-edsl"    >> cabal.project
+  - cabal new-build --enable-tests --enable-benchmarks --constraint="language-c-quote -full-haskell-antiquotes" --dependencies
+
+script:
+  - cabal new-build --enable-tests --enable-benchmarks --constraint="language-c-quote -full-haskell-antiquotes" -v2
+  - TESTS=( $(awk 'tolower($0) ~ /^test-suite / { print $2 }' *.cabal) );
+    RC=true; for T in ${TESTS[@]}; do echo "== $T ==";
+    if dist-newstyle/build/*/build/$T/$T; then echo "= $T OK =";
+    else echo "= $T FAILED ="; RC=false; fi; done; $RC
+  - ls dist-newstyle/build/
+  - cabal check
+  - cabal sdist
+  # Check that the resulting source distribution can be built
+  - SRC_BASENAME=$(cabal info . | awk '{print $2;exit}')
+  - tar -C dist/ -xf dist/$SRC_BASENAME.tar.gz
+  - echo "packages:"                >  dist/$SRC_BASENAME/cabal.project &&
+    echo "  *.cabal"                >> dist/$SRC_BASENAME/cabal.project &&
+    echo "  ../../imperative-edsl"  >> dist/$SRC_BASENAME/cabal.project &&
+    echo "  ../../raw-feldspar"     >> dist/$SRC_BASENAME/cabal.project &&
+    echo "  ../../raw-feldspar-mcs" >> dist/$SRC_BASENAME/cabal.project
+  - cd dist/$SRC_BASENAME/
+  - cabal new-build --enable-tests --enable-benchmarks --constraint="language-c-quote -full-haskell-antiquotes" --disable-optimization
+

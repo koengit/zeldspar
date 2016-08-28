@@ -4,6 +4,7 @@ module Ziria where
 import Control.Monad.Trans.Class
 
 import Feldspar
+import Feldspar.Data.Storable
 
 
 --------------------------------------------------------------------------------

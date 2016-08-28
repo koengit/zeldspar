@@ -13,6 +13,7 @@ import Control.Monad.Trans (lift)
 import Prelude hiding (take)
 
 import Feldspar as F hiding (foldM)
+import Feldspar.Data.Storable
 import Feldspar.Data.Vector as F hiding (take)
 import Feldspar.Run as F hiding (foldM)
 import Ziria as Z
