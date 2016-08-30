@@ -8,7 +8,10 @@ Here is a suggested incantation:
     git clone git@github.com:koengit/zeldspar
     cd zeldspar
     cabal sandbox init
+    cabal install
 
-When installing dependencies in a sandbox, you can get a faster experience and a smaller sandbox by passing a constraint for `language-c-quote`:
+You can get a faster install and a smaller sandbox by changing the last line to:
 
-    cabal install --only-dependencies --constraint="language-c-quote -full-haskell-antiquotes" zeldspar
+    cabal install --constraint="language-c-quote -full-haskell-antiquotes"
+
+(Do this only when installing in a sandbox that has no other dependencies on `language-c-quote`.)
